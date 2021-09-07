@@ -14,12 +14,14 @@ df3 = df3.withColumn('category', lit("books"))
 
 df = df1.union(df2).union(df3)
 
+print((df.count(), len(df.columns)))
+
 # Take a sample (useful for code development purposes)
-df = df.sample(False, 0.15, seed=0)
+df_sample = df.sample(False, 0.15, seed=0)
 
 df = df.cache()
 
-print((df.count(), len(df.columns)))
+print((df_sample.count(), len(df_sample.columns)))
 
 # COMMAND ----------
 
