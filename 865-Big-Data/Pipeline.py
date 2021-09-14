@@ -62,7 +62,7 @@ from sparknlp.base import DocumentAssembler, Finisher
 from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Stemmer
 
 from pyspark.ml import Pipeline
-from pyspark.ml.feature import CountVectorizer, HashingTF, IDF, StringIndexer, SQLTransformer, IndexToString, VectorAssembler, RegexTokenizer, StopWordsRemover
+from pyspark.ml.feature import CountVectorizer, HashingTF, IDF, StringIndexer, SQLTransformer, IndexToString, VectorAssembler, RegexTokenizer, StopWordsRemover, VectorSizeHint
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, NaiveBayes
 
 # We'll tokenize the text using a simple RegexTokenizer
@@ -123,19 +123,45 @@ ml_lr  = LogisticRegression(maxIter=10, regParam=0.3, elasticNetParam=0.0)
 ml_rf  = RandomForestClassifier(numTrees=100, featureSubsetStrategy="auto", impurity='gini', maxDepth=4, maxBins=32)
 ml_nb = NaiveBayes(smoothing=1.0, modelType="multinomial")
 
+sizeHint = VectorSizeHint(
+    inputCol="filtered",
+    handleInvalid="skip",
+    size=3
+)
 
 # COMMAND ----------
 
 # DBTITLE 1,Create Pipeline Obj
 # pick and choose what pipeline you want.
-pipeline_pre = [tokenizer, stopwordsRemover, tf, idf, assembler]
+pipeline_pre = [tokenizer, stopwordsRemover, tf, idf, assembler, sizeHint]
 
+#tf, idf, assembler
 # paramGrid = ParamGridBuilder() \
 #     .addGrid(ml_alg.regParam, [0.3, 0.5, 0.7]) \
 #     .addGrid(ml_alg.elasticNetParam, [0.0]) \
 #     .addGrid(tf.minTF, [1, 100, 1000]) \
 #     .addGrid(tf.vocabSize, [500, 1000, 2500, 5000]) \
 #     .build()
+
+eda = Pipeline(stages=pipeline_pre).fit(df).transform(df)
+
+
+
+# COMMAND ----------
+
+eda.show()
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+eda.select("filtered").show(10,False)
+
+# COMMAND ----------
+
+eda.select("idfFeatures").show(10,False)
 
 # COMMAND ----------
 
@@ -201,4 +227,13 @@ with open(text_file_name, "w") as text_file:
 # COMMAND ----------
 
  !pwd
+
+
+# COMMAND ----------
+
+for file in files:
+  print(file)
+
+# COMMAND ----------
+
 
