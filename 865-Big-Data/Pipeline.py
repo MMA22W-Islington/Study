@@ -31,9 +31,13 @@ df = df1.union(df2).union(df3)
 # TODO: remove all the rest in this data frame when doing real analysis
 df = df.sample(False, 0.50, seed=0)
 
-# df = df.cache()
+df = df.cache().toPandas()
 
 # print((df.count(), len(df.columns)))
+
+# COMMAND ----------
+
+df
 
 # COMMAND ----------
 
@@ -123,17 +127,15 @@ ml_lr  = LogisticRegression(maxIter=10, regParam=0.3, elasticNetParam=0.0)
 ml_rf  = RandomForestClassifier(numTrees=100, featureSubsetStrategy="auto", impurity='gini', maxDepth=4, maxBins=32)
 ml_nb = NaiveBayes(smoothing=1.0, modelType="multinomial")
 
-sizeHint = VectorSizeHint(
-    inputCol="filtered",
-    handleInvalid="skip",
-    size=3
-)
 
 # COMMAND ----------
 
 # DBTITLE 1,Create Pipeline Obj
+counter = CountVectorizer(inputCol="filtered", outputCol="wordCount")
+
+
 # pick and choose what pipeline you want.
-pipeline_pre = [tokenizer, stopwordsRemover, tf, idf, assembler, sizeHint]
+pipeline_pre = [tokenizer, stopwordsRemover, counter]
 
 #tf, idf, assembler
 # paramGrid = ParamGridBuilder() \
@@ -149,11 +151,26 @@ eda = Pipeline(stages=pipeline_pre).fit(df).transform(df)
 
 # COMMAND ----------
 
-eda.show()
+display(df.groupBy("overall", "label").count().orderBy("overall"))
 
 # COMMAND ----------
 
+res = []
+for i in range(1, 6):
+  total = df.filter(df.overall == i ).count()
+  helpful = df.filter((df.overall == i ) & (df.label == 1)).count()
+  res += [helpful/total]
+  
+display(res)
 
+# COMMAND ----------
+
+import pyspark.sql.functions as F
+
+df.groupBy("overall").agg(
+(F.count('label')).alias('count'),
+(F.count('label') / df.count()).alias('percentage')
+).show()
 
 # COMMAND ----------
 
