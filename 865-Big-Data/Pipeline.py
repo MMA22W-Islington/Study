@@ -31,13 +31,9 @@ df = df1.union(df2).union(df3)
 # TODO: remove all the rest in this data frame when doing real analysis
 df = df.sample(False, 0.50, seed=0)
 
-df = df.cache().toPandas()
+df = df.cache()
 
 # print((df.count(), len(df.columns)))
-
-# COMMAND ----------
-
-df
 
 # COMMAND ----------
 
@@ -155,30 +151,30 @@ display(df.groupBy("overall", "label").count().orderBy("overall"))
 
 # COMMAND ----------
 
-res = []
-for i in range(1, 6):
-  total = df.filter(df.overall == i ).count()
-  helpful = df.filter((df.overall == i ) & (df.label == 1)).count()
-  res += [helpful/total]
+# res = []
+# for i in range(1, 6):
+#   total = df.filter(df.overall == i ).count()
+#   helpful = df.filter((df.overall == i ) & (df.label == 1)).count()
+#   res += [helpful/total]
   
-display(res)
+# display(res)
 
 # COMMAND ----------
 
-import pyspark.sql.functions as F
+# import pyspark.sql.functions as F
 
-df.groupBy("overall").agg(
-(F.count('label')).alias('count'),
-(F.count('label') / df.count()).alias('percentage')
-).show()
-
-# COMMAND ----------
-
-eda.select("filtered").show(10,False)
+# df.groupBy("overall").agg(
+# (F.count('label')).alias('count'),
+# (F.count('label') / df.count()).alias('percentage')
+# ).show()
 
 # COMMAND ----------
 
-eda.select("idfFeatures").show(10,False)
+# eda.select("filtered").show(10,False)
+
+# COMMAND ----------
+
+# eda.select("idfFeatures").show(10,False)
 
 # COMMAND ----------
 
