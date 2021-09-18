@@ -1,4 +1,8 @@
 # Databricks notebook source
+
+
+# COMMAND ----------
+
 # TODO:  multi thread
 # TODO: save model 
 # TODO: Train shuffle, strafied (https://spark.apache.org/docs/latest/ml-tuning.html)
@@ -89,7 +93,7 @@ eda.show()
 # pick and choose what pipeline you want.
 pipeline_test = [tokenizer, stopwordsRemover, counter]
 
-
+jxhdkajhdakjh
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
 eda.show()
 
