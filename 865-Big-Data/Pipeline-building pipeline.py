@@ -79,7 +79,7 @@ pipeline_pre = [tokenizer, stopwordsRemover, counter]
 
 
 # pick and choose what pipeline you want.
-pipeline_test = [tokenizer, stopwordsRemover, counter]
+pipeline_test = [tokenizer, stopwordsRemover]
 
 
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
@@ -91,11 +91,34 @@ eda.show()
 
 
 # pick and choose what pipeline you want.
-pipeline_test = [tokenizer, stopwordsRemover, counter]
+pipeline_test = [tokenizer, stopwordsRemover, tf]
 
 
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
 eda.show()
+
+# COMMAND ----------
+
+# DBTITLE 1,LDA: doing after tokenizer
+from pyspark.mllib.clustering import LDA, LDAModel
+from pyspark.mllib.linalg import Vectors
+
+lda = LDA(k=10, maxIter=10)
+model = lda.fit(eda)
+
+ll = model.logLikelihood(eda)
+lp = model.logPerplexity(eda)
+print("The lower bound on the log likelihood of the entire corpus: " + str(ll))
+print("The upper bound on perplexity: " + str(lp))
+
+# Describe topics.
+topics = model.describeTopics(10)
+print("The topics described by their top-weighted terms:")
+topics.show(truncate=False)
+
+# Shows the result
+transformed = model.transform(dataset)
+transformed.show(truncate=False)
 
 # COMMAND ----------
 
