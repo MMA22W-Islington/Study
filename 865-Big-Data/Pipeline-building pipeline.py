@@ -91,7 +91,7 @@ eda.show()
 
 
 # pick and choose what pipeline you want.
-pipeline_test = [tokenizer, stopwordsRemover, tf]
+pipeline_test = [tokenizer, stopwordsRemover, tf,word2Vec]
 
 
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
@@ -101,7 +101,6 @@ eda.show()
 
 # DBTITLE 1,LDA: doing after tokenizer
 from pyspark.mllib.clustering import LDA, LDAModel
-from pyspark.mllib.linalg import Vectors
 
 lda = LDA(k=10, maxIter=10)
 model = lda.fit(eda)
@@ -119,6 +118,12 @@ topics.show(truncate=False)
 # Shows the result
 transformed = model.transform(dataset)
 transformed.show(truncate=False)
+
+# COMMAND ----------
+
+# DBTITLE 1,Word2Vec
+from pyspark.ml.feature import Word2Vec
+word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol="words", outputCol="w2v")
 
 # COMMAND ----------
 
