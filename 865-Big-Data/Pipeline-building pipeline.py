@@ -71,7 +71,19 @@ pipeline_pre = [tokenizer, stopwordsRemover, counter]
 
 # COMMAND ----------
 
-# DBTITLE 1,[SKIP]Develop pipeline
+# DBTITLE 1,[SKIP]Develop pipeline(Joe)
+
+
+# pick and choose what pipeline you want.
+pipeline_test = [tokenizer, stopwordsRemover, counter]
+
+
+eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
+eda.show()
+
+# COMMAND ----------
+
+# DBTITLE 1,[SKIP]Develop pipeline(Yujun)
 
 
 # pick and choose what pipeline you want.
