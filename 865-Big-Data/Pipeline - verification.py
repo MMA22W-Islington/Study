@@ -72,6 +72,8 @@ pipeline_pre = [tokenizer, stopwordsRemover, counter]
 # COMMAND ----------
 
 # DBTITLE 1,Build Estimator list
+# boosting + rf ensemble
+
 # Machine Learning Algorithm
 ml_lr  = LogisticRegression(maxIter=10)
 paramGrid_lr = ParamGridBuilder()\
