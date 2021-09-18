@@ -11,7 +11,7 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
 from sparknlp.base import DocumentAssembler, Finisher
-from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, SentenceDetector, ContextSpellCheckerApproach, NormalizerModel
+from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, SentenceDetector, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel
 from sparknlp.pretrained import PretrainedPipeline
 
 from pyspark.ml import Pipeline
@@ -99,7 +99,7 @@ lemmatizer = LemmatizerModel.pretrained() \
   
 # # remove stopwords
 stopwords_cleaner = StopWordsCleaner()\
-      .setInputCols("lemma.result")\
+      .setInputCols("lemma")\
       .setOutputCol("cleanTokens")\
       .setCaseSensitive(False)
 
@@ -120,7 +120,8 @@ pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmat
 
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
 # .select(["reviewText", "result"])
-eda.selectExpr("token_features").show(10, truncate=False)
+# eda.selectExpr("token_features").show(10, truncate=False)
+eda.show(10)
 
 # eda.select('sentence').show(10, truncate=False)
 
