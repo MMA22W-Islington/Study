@@ -93,7 +93,7 @@ eda.show()
 # pick and choose what pipeline you want.
 pipeline_test = [tokenizer, stopwordsRemover, counter]
 
-jxhdkajhdakjh
+
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
 eda.show()
 
