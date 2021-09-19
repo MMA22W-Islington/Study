@@ -1,8 +1,10 @@
 # Databricks notebook source
-# TODO:  multi thread
+# TODO: dictionary
+# TODO: summary?
+# TODO: Sentiment https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDetectorModel.html
 # TODO: save model 
-# TODO: Train shuffle, strafied (https://spark.apache.org/docs/latest/ml-tuning.html)
 # TODO: RF Ensemble
+# TODO: html anchor
 
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, VectorAssembler, IDF
@@ -11,7 +13,7 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
 from sparknlp.base import DocumentAssembler, Finisher
-from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, SentenceDetector, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel
+from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Lemmatizer, LemmatizerModel, SymmetricDeleteModel, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel, NorvigSweetingModel
 from sparknlp.pretrained import PretrainedPipeline
 
 from pyspark.ml import Pipeline
@@ -65,8 +67,14 @@ df.show()
 
 # COMMAND ----------
 
-# DBTITLE 1,Confirmed Pipeline
+!echo -e "I'm\t->\tI am\t\nok\t->\tjoey" > Contraction.txt
+!cat Contraction.txt
+# !echo Contraction.txt
 
+# COMMAND ----------
+
+# !realpath Contraction.txt
+!cat Contraction.txt
 
 # COMMAND ----------
 
@@ -79,19 +87,10 @@ document_assembler = DocumentAssembler() \
 tokenizer = Tokenizer() \
     .setInputCols(["document"]) \
     .setOutputCol("token")
-  
-# clean tokens , also need comtraction expand, and remove punctality
-normalizer = Normalizer() \
-    .setInputCols(["token"]) \
-    .setOutputCol("normalized") \
-    .setLowercase(True) \
-    .setCleanupPatterns(["""[^\w\d\s]"""])
- 
-spellChecker = ContextSpellCheckerModel.pretrained() \
-    .setInputCols("normalized") \
-    .setOutputCol("corrected")
 
-# Lemmenation
+spellChecker = ContextSpellCheckerModel.pretrained() \
+    .setInputCols("token") \
+    .setOutputCol("corrected")
 
 lemmatizer = LemmatizerModel.pretrained() \
     .setInputCols(["corrected"]) \
@@ -103,25 +102,32 @@ stopwords_cleaner = StopWordsCleaner()\
       .setOutputCol("cleanTokens")\
       .setCaseSensitive(False)
 
+# clean tokens , also need comtraction expand, and remove punctality
+normalizer = Normalizer() \
+    .setInputCols(["cleanTokens"]) \
+    .setOutputCol("normalized") \
+    .setLowercase(True) \
+    .setCleanupPatterns(["""[^\w\d\s]"""])
+
 ## sentiment
 # https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDLModel.html
 # https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.ViveknSentimentApproach.html
 
 # # Convert custom document structure to array of tokens.
 finisher = Finisher() \
-    .setInputCols(["cleanTokens"]) \
+    .setInputCols(["normalized"]) \
     .setOutputCols(["token_features"]) \
     .setOutputAsArray(True) \
     .setCleanAnnotations(False) 
 
 # pick and choose what pipeline you want.
-pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmatizer, stopwords_cleaner, finisher]
+pipeline_test = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher]
+# pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmatizer, stopwords_cleaner, finisher] # move normalizer to the back
 
 
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
 # .select(["reviewText", "result"])
-# eda.selectExpr("token_features").show(10, truncate=False)
-eda.show(10)
+eda.selectExpr("token_features").show(10, truncate=False)
 
 # eda.select('sentence').show(10, truncate=False)
 

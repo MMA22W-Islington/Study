@@ -1,26 +1,26 @@
 # Databricks notebook source
+# TODO: parallel
+# TODO: summary?
+# TODO: Sentiment https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDetectorModel.html
 # TODO: save model 
-# TODO: how to LOG https://stackoverflow.com/questions/61782919/pyspark-logging-printing-information-at-the-wrong-log-level
-# TODO: Log Time, and download
-# TODO: Train shuffle, strafied (https://spark.apache.org/docs/latest/ml-tuning.html)
 # TODO: RF Ensemble
+# TODO: html anchor
 
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, VectorAssembler, IDF
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, NaiveBayes
-from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder, TrainValidationSplit
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
 from sparknlp.base import DocumentAssembler, Finisher
-from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Stemmer
+from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, AlbertEmbeddings, LemmatizerModel, ContextSpellCheckerModel
+from sparknlp.pretrained import PretrainedPipeline
 
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import CountVectorizer, HashingTF, IDF, StringIndexer, SQLTransformer, IndexToString, VectorAssembler, RegexTokenizer, StopWordsRemover, VectorSizeHint
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, NaiveBayes
 
 from pyspark.sql.functions import lit, col
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
-import datetime
 
 # COMMAND ----------
 
@@ -36,6 +36,8 @@ df3 = spark.sql("select * from default.books_5_small")
 df3 = df3.withColumn('category', lit("books"))
 
 df = df1.union(df2).union(df3)
+
+df = df.sample(False, 0.30, seed=0)
 
 # COMMAND ----------
 
@@ -60,14 +62,73 @@ df.show()
 # COMMAND ----------
 
 # DBTITLE 1,build pre-proccessing Pipeline
-# We'll tokenize the text using a simple RegexTokenizer
-tokenizer = RegexTokenizer(inputCol="reviewText", outputCol="words", pattern="\\W")
+document_assembler = DocumentAssembler() \
+    .setInputCol("reviewText") \
+    .setOutputCol("document")
 
-# Remove standard Stopwords
-stopwordsRemover = StopWordsRemover(inputCol="words", outputCol="filtered")
+# convert document to array of tokens
+tokenizer = Tokenizer() \
+    .setInputCols(["document"]) \
+    .setOutputCol("token")
+
+spellChecker = ContextSpellCheckerModel.pretrained() \
+    .setInputCols("token") \
+    .setOutputCol("corrected")
+
+lemmatizer = LemmatizerModel.pretrained() \
+    .setInputCols(["corrected"]) \
+    .setOutputCol("lemma")
+  
+# # remove stopwords
+stopwords_cleaner = StopWordsCleaner()\
+      .setInputCols("lemma")\
+      .setOutputCol("cleanTokens")\
+      .setCaseSensitive(False)
+
+# clean tokens , also need comtraction expand, and remove punctality
+normalizer = Normalizer() \
+    .setInputCols(["cleanTokens"]) \
+    .setOutputCol("normalized") \
+    .setLowercase(True) \
+    .setCleanupPatterns(["""[^\w\d\s]"""])
+
+## sentiment
+# https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDLModel.html
+# https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.ViveknSentimentApproach.html
+
+# # Convert custom document structure to array of tokens.
+finisher = Finisher() \
+    .setInputCols(["normalized"]) \
+    .setOutputCols(["token_features"]) \
+    .setOutputAsArray(True) \
+    .setCleanAnnotations(False) 
+
+# embeddings = AlbertEmbeddings.pretrained() \
+#    .setInputCols(["document", "normalized"]) \
+#    .setOutputCol("embeddings")
+
+
+# Generate Term Frequency
+tf = CountVectorizer(inputCol="token_features", outputCol="rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
+
+# Generate Inverse Document Frequency weighting
+idf = IDF(inputCol="rawFeatures", outputCol="idfFeatures", minDocFreq=5)
+
+# Combine all features into one final "features" column
+assembler = VectorAssembler(inputCols=["verified", "overall", "idfFeatures"], outputCol="features")
 
 # pick and choose what pipeline you want.
-pipeline_pre = [tokenizer, stopwordsRemover, counter]
+pipeline_pre = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher, tf, idf, assembler]
+# pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmatizer, stopwords_cleaner, finisher] # move normalizer to the back
+
+# COMMAND ----------
+
+eda = Pipeline(stages=pipeline_pre).fit(df).transform(df)
+# .select(["reviewText", "result"])
+# eda.selectExpr("embeddings").show(10, truncate=False)
+
+# eda.select('sentence').show(10, truncate=False)
+eda.show()
 
 # COMMAND ----------
 
@@ -77,46 +138,48 @@ pipeline_pre = [tokenizer, stopwordsRemover, counter]
 # Machine Learning Algorithm
 ml_lr  = LogisticRegression(maxIter=10)
 paramGrid_lr = ParamGridBuilder()\
-    .addGrid(lr.regParam, [0.1, 0.01]) \
-    .addGrid(lr.fitIntercept, [False, True])\
-    .addGrid(lr.elasticNetParam, [0.0, 0.5, 1.0])\
+    .addGrid(ml_lr.regParam, [0.1, 0.01]) \
+    .addGrid(ml_lr.fitIntercept, [False, True])\
+    .addGrid(ml_lr.elasticNetParam, [0.0, 0.5, 1.0])\
     .build()
 tvs_lr = TrainValidationSplit(estimator=ml_lr,
                            estimatorParamMaps=paramGrid_lr,
-                           evaluator=RegressionEvaluator(),
+                              parallelism  = 10,
+                           evaluator=BinaryClassificationEvaluator(),
                            # 80% of the data will be used for training, 20% for validation.
                            trainRatio=0.8)
 
 
-ml_rf  = RandomForestClassifier(numTrees=100, featureSubsetStrategy="auto", impurity='gini', maxDepth=4, maxBins=32)
-## NEED TO FIND PRESET
-paramGrid_rf = ParamGridBuilder()\
-    .addGrid(ml_rf.regParam, [0.1, 0.01]) \
-    .addGrid(ml_rf.fitIntercept, [False, True])\
-    .addGrid(ml_rf.elasticNetParam, [0.0, 0.5, 1.0])\
-    .build()
-tvs_rf = TrainValidationSplit(estimator=ml_rf,
-                           estimatorParamMaps=paramGrid_rf,
-                           evaluator=RegressionEvaluator(),
-                           # 80% of the data will be used for training, 20% for validation.
-                           trainRatio=0.8)
+# ml_rf  = RandomForestClassifier(numTrees=100, featureSubsetStrategy="auto", impurity='gini', maxDepth=4, maxBins=32)
+# ## NEED TO FIND PRESET
+# paramGrid_rf = ParamGridBuilder()\
+#     .addGrid(ml_rf.regParam, [0.1, 0.01]) \
+#     .addGrid(ml_rf.fitIntercept, [False, True])\
+#     .addGrid(ml_rf.elasticNetParam, [0.0, 0.5, 1.0])\
+#     .build()
+# tvs_rf = TrainValidationSplit(estimator=ml_rf,
+#                            estimatorParamMaps=paramGrid_rf,
+#                            evaluator=BinaryClassificationEvaluator(),
+#                            # 80% of the data will be used for training, 20% for validation.
+#                            trainRatio=0.8)
 
 
-ml_nb = NaiveBayes(smoothing=1.0, modelType="multinomial")
-# NEED TO FIND PRESET
-paramGrid_nb = ParamGridBuilder()\
-    .addGrid(ml_nb.regParam, [0.1, 0.01]) \
-    .addGrid(ml_nb.fitIntercept, [False, True])\
-    .addGrid(ml_nb.elasticNetParam, [0.0, 0.5, 1.0])\
-    .build()
-tvs_nb = TrainValidationSplit(estimator=ml_nb,
-                           estimatorParamMaps=paramGrid_nb,
-                           evaluator=RegressionEvaluator(),
-                           # 80% of the data will be used for training, 20% for validation.
-                           trainRatio=0.8)
+# ml_nb = NaiveBayes(smoothing=1.0, modelType="multinomial")
+# # NEED TO FIND PRESET
+# paramGrid_nb = ParamGridBuilder()\
+#     .addGrid(ml_nb.regParam, [0.1, 0.01]) \
+#     .addGrid(ml_nb.fitIntercept, [False, True])\
+#     .addGrid(ml_nb.elasticNetParam, [0.0, 0.5, 1.0])\
+#     .build()
+# tvs_nb = TrainValidationSplit(estimator=ml_nb,
+#                            estimatorParamMaps=paramGrid_nb,
+#                            evaluator=BinaryClassificationEvaluator(),
+#                            # 80% of the data will be used for training, 20% for validation.
+#                            trainRatio=0.8)
 
 
-estimators = [("lr", tvs_lr), ("rf", tvs_rf), ("nb", tvs_nb)]
+# estimators = [("lr", tvs_lr), ("rf", tvs_rf), ("nb", tvs_nb)]
+estimators = [("lr", tvs_lr)]
 
 # COMMAND ----------
 
