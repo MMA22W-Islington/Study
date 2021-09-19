@@ -13,7 +13,7 @@ from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
 from sparknlp.base import DocumentAssembler, Finisher
-from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Lemmatizer, LemmatizerModel, SymmetricDeleteModel, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel, NorvigSweetingModel
+from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Lemmatizer, LemmatizerModel, SymmetricDeleteModel, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel, NorvigSweetingModel, AlbertEmbeddings
 from sparknlp.pretrained import PretrainedPipeline
 
 from pyspark.ml import Pipeline
@@ -67,17 +67,6 @@ df.show()
 
 # COMMAND ----------
 
-!echo -e "I'm\t->\tI am\t\nok\t->\tjoey" > Contraction.txt
-!cat Contraction.txt
-# !echo Contraction.txt
-
-# COMMAND ----------
-
-# !realpath Contraction.txt
-!cat Contraction.txt
-
-# COMMAND ----------
-
 # DBTITLE 1,[SKIP]Develop pipeline(Joe)
 document_assembler = DocumentAssembler() \
     .setInputCol("reviewText") \
@@ -120,28 +109,26 @@ finisher = Finisher() \
     .setOutputAsArray(True) \
     .setCleanAnnotations(False) 
 
+embeddings = AlbertEmbeddings.pretrained() \
+   .setInputCols(["document", "token"]) \
+   .setOutputCol("embeddings")
+
 # pick and choose what pipeline you want.
-pipeline_test = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher]
+pipeline_test = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher, embeddings]
 # pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmatizer, stopwords_cleaner, finisher] # move normalizer to the back
 
 
 eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
 # .select(["reviewText", "result"])
-eda.selectExpr("token_features").show(10, truncate=False)
+eda.selectExpr("embeddings").show(10, truncate=False)
 
 # eda.select('sentence').show(10, truncate=False)
 
 # COMMAND ----------
 
-# DBTITLE 1,[SKIP]Develop pipeline(Yujun)
-
-
-# pick and choose what pipeline you want.
-pipeline_test = [tokenizer, stopwordsRemover, counter]
-
-jxhdkajhdakjh
-eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
-eda.show()
+!echo -e "I'm\t->\tI am\t\nok\t->\tjoey" > Contraction.txt
+!cat Contraction.txt
+# !echo Contraction.txt
 
 # COMMAND ----------
 
