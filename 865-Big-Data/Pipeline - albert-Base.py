@@ -77,6 +77,11 @@ albert = AlbertEmbeddings.pretrained()\
         .setInputCols(["document", "token"])\
        .setOutputCol("albert")
 
+sentence_embeddings = SentenceEmbeddings() \
+            .setInputCols(["document", "albert"]) \
+            .setOutputCol("sentence_embeddings") \
+            .setPoolingStrategy("AVERAGE")
+
 
 # Define the Char CNN - BiLSTM - CRF model. We will feed it the Albert tokens 
 nerTagger = NerDLApproach()\
@@ -87,13 +92,17 @@ nerTagger = NerDLApproach()\
   .setRandomSeed(0)\
   .setVerbose(0)
 
+assembler = VectorAssembler(inputCols=["verified", "overall", "idfFeatures"], outputCol="features")
+
+# Combine all features into one final "features" column
+# assembler = VectorAssembler(inputCols=["verified", "overall", "albert"], outputCol="features")
+
 # put everything into the pipe
 pipeline = Pipeline(
     stages = [
       document_assembler,
       tokenizer,
-      albert,
-      nerTagger
+      albert
   ])
 
 # pick and choose what pipeline you want.
@@ -110,7 +119,29 @@ pipeline = Pipeline(
 
 # DBTITLE 1,Train and Predict (only for feature selection and that sort)
 pipelineFit = pipeline.fit(trainingData)
-predictions = pipelineFit.transform(testData)
+# redictions = pipelineFit.transform(testData)
+
+# COMMAND ----------
+
+# Fit the pipeline to training documents.
+
+trainingDataTransformed = pipelineFit.transform(trainingData)
+
+from pyspark.ml.classification import LogisticRegression
+
+# More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
+
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
+lrModel = lr.fit(trainingDataTransformed)
+
+trainingSummary = lrModel.summary
+
+print("Training Accuracy:  " + str(trainingSummary.accuracy))
+print("Training Precision: " + str(trainingSummary.precisionByLabel))
+print("Training Recall:    " + str(trainingSummary.recallByLabel))
+print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
+print("Training AUC:       " + str(trainingSummary.areaUnderROC))
+
 
 # COMMAND ----------
 

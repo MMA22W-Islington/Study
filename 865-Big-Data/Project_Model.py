@@ -32,6 +32,8 @@ df = df1.union(df2).union(df3)
 
 df = df.sample(False, 0.30, seed=0)
 
+df = df.cache()
+
 # COMMAND ----------
 
 from pyspark.sql.functions import to_date
@@ -43,6 +45,7 @@ df = df.withColumn(
 )
 
 drop_list = [
+  "asin",
   "reviewID",
   "reviewerID",
   "unixReviewTime", # reviewTime is the same as unixReviewTime
@@ -100,19 +103,32 @@ finisher = Finisher() \
 #    .setInputCols(["document", "normalized"]) \
 #    .setOutputCol("embeddings")
 
+# hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
 
-# Generate Term Frequency
-tf = CountVectorizer(inputCol="token_features", outputCol="rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
+# alternatively, CountVectorizer can also be used to get term frequency vectors
 
-# Generate Inverse Document Frequency weighting
-idf = IDF(inputCol="rawFeatures", outputCol="idfFeatures", minDocFreq=5)
+# idf = IDF(inputCol="rawFeatures", outputCol="idfFeatures")
+
+from pyspark.ml.feature import Word2Vec
+word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol="token_features", outputCol="w2v")
 
 # Combine all features into one final "features" column
-assembler = VectorAssembler(inputCols=["verified", "overall", "idfFeatures"], outputCol="features")
+assembler = VectorAssembler(inputCols=["verified", "overall", "w2v"], outputCol="features")
 
 # pick and choose what pipeline you want.
-pipeline_pre = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher, tf, idf, assembler]
+
+pipeline_pre = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher, word2Vec,assembler]
+# pipeline_pre = [document_assembler, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher, tf, idf, assembler]
 # pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmatizer, stopwords_cleaner, finisher] # move normalizer to the back
+
+# COMMAND ----------
+
+eda = Pipeline(stages=pipeline_pre).fit(df).transform(df)
+# .select(["reviewText", "result"])
+# eda.selectExpr("embeddings").show(10, truncate=False)
+
+# eda.select('sentence').show(10, truncate=False)
+eda.show()
 
 # COMMAND ----------
 

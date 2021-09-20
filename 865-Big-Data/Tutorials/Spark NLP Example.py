@@ -8,7 +8,7 @@ df3 = spark.sql("select * from default.books_5_small")
 #data = df1.union(df2)
 data = df1.union(df2).union(df3)
 
-data = data.sample(False, 0.01, seed=0)
+data = data.sample(False, 0.3, seed=0)
 
 data = data.cache()
 
