@@ -12,7 +12,7 @@ from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
-from sparknlp.base import DocumentAssembler, Finisher
+from sparknlp.base import DocumentAssembler, Finisher, EmbeddingsFinisher
 from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Lemmatizer, LemmatizerModel, SymmetricDeleteModel, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel, NorvigSweetingModel, AlbertEmbeddings, DocumentNormalizer
 from sparknlp.pretrained import PretrainedPipeline
 
@@ -21,6 +21,15 @@ from pyspark.ml.feature import CountVectorizer, HashingTF, IDF, StringIndexer, S
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, NaiveBayes
 
 from pyspark.sql.functions import lit, col
+from pyspark.sql.functions import udf
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import SQLTransformer
+from pyspark.ml.linalg import Vectors, VectorUDT
+from pyspark.sql.functions import udf
+import datetime
+
+now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+now
 
 # COMMAND ----------
 
@@ -39,10 +48,9 @@ df = df1.union(df2).union(df3)
 
 # Take a sample (useful for code development purposes)
 # TODO: remove all the rest in this data frame when doing real analysis
-df = df.sample(False, 0.30, seed=0)
+df = df.sample(False, 0.01, seed=0)
 
-# df = df.cache()
-
+(trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
 # print((df.count(), len(df.columns)))
 
 # COMMAND ----------
@@ -56,6 +64,8 @@ df = df.withColumn(
 )
 
 drop_list = [
+  "asin",
+  "reviewTime",
   "reviewID",
   "reviewerID",
   "unixReviewTime", # reviewTime is the same as unixReviewTime
@@ -63,7 +73,7 @@ drop_list = [
 ]
 df = df.select([column for column in df.columns if column not in drop_list])
 
-df.show()
+# df.show()
 
 # COMMAND ----------
 
@@ -122,14 +132,75 @@ finisher = Finisher() \
 sqlTrans = SQLTransformer(
     statement="SELECT *, size(token_features) AS reviewTextTokenSize FROM __THIS__")
 
-# pick and choose what pipeline you want.
-pipeline_test = [document_assembler, documentNormalizer, tokenizer, spellChecker, lemmatizer, stopwords_cleaner, normalizer, finisher, sqlTrans]
-# pipeline_test = [document_assembler, tokenizer, normalizer, spellChecker, lemmatizer, stopwords_cleaner, finisher] # move normalizer to the back
+pipeline_pre_1 = [
+  document_assembler, documentNormalizer, tokenizer, 
+  spellChecker, lemmatizer, stopwords_cleaner, 
+  normalizer, finisher, sqlTrans]
 
-
-eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
-eda.selectExpr("token_features").show(10, truncate=1000)
+%time
+tranformData_cleaned_p = Pipeline(stages=pipeline_pre_1).fit(trainingData)
+tranformData_cleaned_p.save(f"file:///databricks/driver/pipeline_pre_1_{now}")
+tranformData_cleaned = tranformData_cleaned_p.transform(trainingData)
+tranformData_cleaned.show(5)
 
 # COMMAND ----------
 
-eda.selectExpr("reviewTextTokenSize").show(10, truncate=1000)
+# DBTITLE 1,Convert text to vector
+hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
+tf = CountVectorizer(inputCol="token_features", outputCol="rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
+
+
+# Generate Inverse Document Frequency weighting
+idf = IDF(inputCol="rawFeatures", outputCol="idfFeatures", minDocFreq=5)
+
+# Combine all features into one final "features" column
+assembler = VectorAssembler(inputCols=["verified", "overall", "reviewTextTokenSize", "idfFeatures"], outputCol="features")
+
+%time
+tranformData_features_p = Pipeline(stages=[tf, idf, assembler]).fit(tranformData_cleaned)
+tranformData_features_p.save("file:///databricks/driver/tranformData_features_{now}")
+tranformData_features = tranformData_features_p.transform(tranformData_cleaned)
+tranformData_features.show(5)
+
+# COMMAND ----------
+
+from pyspark.ml.classification import LogisticRegression
+
+# More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
+%time
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
+lrModel = Pipeline(stages=[lr]).fit(tranformData_features)
+
+# COMMAND ----------
+
+# Extract the summary from the returned LogisticRegressionModel instance trained
+# in the earlier example
+trainingSummary = lrModel.summary
+
+print("Training Accuracy:  " + str(trainingSummary.accuracy))
+print("Training Precision: " + str(trainingSummary.precisionByLabel))
+print("Training Recall:    " + str(trainingSummary.recallByLabel))
+print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
+print("Training AUC:       " + str(trainingSummary.areaUnderROC))
+
+# COMMAND ----------
+
+testingDataTransform = lrModel.transform(testingData)
+testingDataTransform.show(5)
+
+evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
+print('Test Area Under ROC', evaluator.evaluate(predictions))
+
+# COMMAND ----------
+
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+
+predictions = lrModel.transform(testingDataTransform)
+predictions.show(5)
+
+evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
+print('Test Area Under ROC', evaluator.evaluate(predictions))
+
+# COMMAND ----------
+
+!ls
