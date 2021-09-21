@@ -46,12 +46,11 @@ df3 = df3.withColumn('category', lit("books"))
 
 df = df1.union(df2).union(df3)
 
-# Take a sample (useful for code development purposes)
-# TODO: remove all the rest in this data frame when doing real analysis
-df = df.sample(False, 0.01, seed=0)
+# Test
+# (trainingData, testingData) = df.sample(False, 0.01, seed=0).randomSplit([0.8, 0.2], seed = 47)
 
-(trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
-# print((df.count(), len(df.columns)))
+# Kaggle
+(trainingData, testingData) = df, spark.sql("select * from default.reviews_holdout")
 
 # COMMAND ----------
 
@@ -77,66 +76,72 @@ df = df.select([column for column in df.columns if column not in drop_list])
 
 # COMMAND ----------
 
-# DBTITLE 1,[SKIP]Develop pipeline(Joe)
-document_assembler = DocumentAssembler() \
-    .setInputCol("reviewText") \
-    .setOutputCol("document")
+# DBTITLE 1,NLP Preprocessing
+def NLPPipe(fieldname):
+  document_assembler = DocumentAssembler() \
+      .setInputCol(fieldname) \
+      .setOutputCol(f"{fieldname}_document")
 
-documentNormalizer = DocumentNormalizer() \
-    .setInputCols("document") \
-    .setOutputCol("removedHTML") \
-    .setAction("clean") \
-    .setPatterns(["<[^>]*>"]) \
-    .setReplacement(" ") \
-    .setPolicy("pretty_all") \
-    .setLowercase(True) \
-    .setEncoding("UTF-8")
+  documentNormalizer = DocumentNormalizer() \
+      .setInputCols(f"{fieldname}_document") \
+      .setOutputCol(f"{fieldname}_removedHTML") \
+      .setAction("clean") \
+      .setPatterns(["<[^>]*>"]) \
+      .setReplacement(" ") \
+      .setPolicy("pretty_all") \
+      .setLowercase(True) \
+      .setEncoding("UTF-8")
 
-# convert document to array of tokens
-tokenizer = Tokenizer() \
-    .setInputCols(["removedHTML"]) \
-    .setOutputCol("token")
+  # convert document to array of tokens
+  tokenizer = Tokenizer() \
+      .setInputCols([f"{fieldname}_removedHTML"]) \
+      .setOutputCol(f"{fieldname}_token")
 
-spellChecker = ContextSpellCheckerModel.pretrained() \
-    .setInputCols("token") \
-    .setOutputCol("corrected")
+  spellChecker = ContextSpellCheckerModel.pretrained() \
+      .setInputCols(f"{fieldname}_token") \
+      .setOutputCol(f"{fieldname}_corrected")
 
-lemmatizer = LemmatizerModel.pretrained() \
-    .setInputCols(["corrected"]) \
-    .setOutputCol("lemma")
-  
-# # remove stopwords
-stopwords_cleaner = StopWordsCleaner()\
-      .setInputCols("lemma")\
-      .setOutputCol("cleanTokens")\
-      .setCaseSensitive(False)
+  lemmatizer = LemmatizerModel.pretrained() \
+      .setInputCols([f"{fieldname}_corrected"]) \
+      .setOutputCol(f"{fieldname}_lemma")
 
-# clean tokens , also need comtraction expand, and remove punctality
-normalizer = Normalizer() \
-    .setInputCols(["cleanTokens"]) \
-    .setOutputCol("normalized") \
-    .setLowercase(True) \
-    .setCleanupPatterns(["""[^\w\d\s]"""])
+  # # remove stopwords
+  stopwords_cleaner = StopWordsCleaner()\
+        .setInputCols(f"{fieldname}_lemma")\
+        .setOutputCol(f"{fieldname}_cleanTokens")\
+        .setCaseSensitive(False)
 
-## sentiment
-# https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDLModel.html
-# https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.ViveknSentimentApproach.html
+  # clean tokens , also need comtraction expand, and remove punctality
+  normalizer = Normalizer() \
+      .setInputCols([f"{fieldname}_cleanTokens"]) \
+      .setOutputCol(f"{fieldname}_normalized") \
+      .setLowercase(True) \
+      .setCleanupPatterns(["""[^\w\d\s]"""])
 
-# # Convert custom document structure to array of tokens.
-finisher = Finisher() \
-    .setInputCols(["normalized"]) \
-    .setOutputCols(["token_features"]) \
-    .setOutputAsArray(True) \
-    .setCleanAnnotations(False) 
+  ## sentiment
+  # https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDLModel.html
+  # https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.ViveknSentimentApproach.html
 
-sqlTrans = SQLTransformer(
-    statement="SELECT *, size(token_features) AS reviewTextTokenSize FROM __THIS__")
+  # # Convert custom document structure to array of tokens.
+  finisher = Finisher() \
+      .setInputCols([f"{fieldname}_normalized"]) \
+      .setOutputCols([f"{fieldname}_token_features"]) \
+      .setOutputAsArray(True) \
+      .setCleanAnnotations(False) 
 
-pipeline_pre_1 = [
-  document_assembler, documentNormalizer, tokenizer, 
-  spellChecker, lemmatizer, stopwords_cleaner, 
-  normalizer, finisher, sqlTrans]
+  sqlTrans = SQLTransformer(
+      statement=f"SELECT *, size({fieldname}_token_features) AS {fieldname}_TokenSize FROM __THIS__")
 
+  return ([
+    document_assembler, documentNormalizer, tokenizer, 
+    spellChecker, lemmatizer, stopwords_cleaner, 
+    normalizer, finisher, sqlTrans])
+
+
+# COMMAND ----------
+
+# DBTITLE 1,Review Text
+pipeline_pre_1 = NLPPipe("reviewText") + NLPPipe("summary")
 %time
 tranformData_cleaned_p = Pipeline(stages=pipeline_pre_1).fit(trainingData)
 tranformData_cleaned_p.save(f"file:///databricks/driver/pipeline_pre_1_{now}")
@@ -146,18 +151,16 @@ tranformData_cleaned.show(5)
 # COMMAND ----------
 
 # DBTITLE 1,Convert text to vector
-hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
-tf = CountVectorizer(inputCol="token_features", outputCol="rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
-
-
-# Generate Inverse Document Frequency weighting
-idf = IDF(inputCol="rawFeatures", outputCol="idfFeatures", minDocFreq=5)
+def getVector(field):
+  # hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
+  tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
+  idf = IDF(inputCol=f"{field}_rawFeatures", outputCol=f"{field}_idfFeatures", minDocFreq=5)
+  return [tf, idf]
 
 # Combine all features into one final "features" column
-assembler = VectorAssembler(inputCols=["verified", "overall", "reviewTextTokenSize", "idfFeatures"], outputCol="features")
-
+assembler = VectorAssembler(inputCols=["verified", "overall", "summary_TokenSize", "summary_idfFeatures", "reviewText_TokenSize", "reviewText_idfFeatures"], outputCol="features")
 %time
-tranformData_features_p = Pipeline(stages=[tf, idf, assembler]).fit(tranformData_cleaned)
+tranformData_features_p = Pipeline(stages=getVector("reviewText") + getVector("summary") + [assembler]).fit(tranformData_cleaned)
 tranformData_features_p.save("file:///databricks/driver/tranformData_features_{now}")
 tranformData_features = tranformData_features_p.transform(tranformData_cleaned)
 tranformData_features.show(5)
@@ -170,37 +173,35 @@ from pyspark.ml.classification import LogisticRegression
 %time
 lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
 lrModel = Pipeline(stages=[lr]).fit(tranformData_features)
+lrModel.save("file:///databricks/driver/lr_model_{now}")
 
 # COMMAND ----------
 
 # Extract the summary from the returned LogisticRegressionModel instance trained
 # in the earlier example
-trainingSummary = lrModel.summary
+# trainingSummary = lrModel.summary
 
-print("Training Accuracy:  " + str(trainingSummary.accuracy))
-print("Training Precision: " + str(trainingSummary.precisionByLabel))
-print("Training Recall:    " + str(trainingSummary.recallByLabel))
-print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
-print("Training AUC:       " + str(trainingSummary.areaUnderROC))
+# print("Training Accuracy:  " + str(trainingSummary.accuracy))
+# print("Training Precision: " + str(trainingSummary.precisionByLabel))
+# print("Training Recall:    " + str(trainingSummary.recallByLabel))
+# print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
+# print("Training AUC:       " + str(trainingSummary.areaUnderROC))
 
 # COMMAND ----------
 
-testingDataTransform = lrModel.transform(testingData)
+testingDataTransform = lrModel.transform(tranformData_features_p.transform(tranformData_cleaned_p.transform(testingData)))
 testingDataTransform.show(5)
 
-evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
-print('Test Area Under ROC', evaluator.evaluate(predictions))
 
 # COMMAND ----------
 
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
-
-predictions = lrModel.transform(testingDataTransform)
-predictions.show(5)
-
-evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
-print('Test Area Under ROC', evaluator.evaluate(predictions))
+# evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
+# print('Test Area Under ROC', evaluator.evaluate(testingDataTransform))
 
 # COMMAND ----------
 
-!ls
+testingDataTransform.write.format("csv").save(f"file:///databricks/driver/dataframe_kaggle_{now")
+
+# COMMAND ----------
+
+display(testingDataTransform.select('reviewID', 'prediction'))
