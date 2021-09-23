@@ -1,4 +1,5 @@
 # Databricks notebook source
+# TODO: Save not working after restart
 # TODO: dictionary
 # TODO: summary?
 # TODO: Sentiment https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDetectorModel.html
@@ -47,10 +48,10 @@ df3 = df3.withColumn('category', lit("books"))
 df = df1.union(df2).union(df3)
 
 # Test
-# (trainingData, testingData) = df.sample(False, 0.01, seed=0).randomSplit([0.8, 0.2], seed = 47)
+(trainingData, testingData) = df.sample(False, 0.1, seed=0).randomSplit([0.8, 0.2], seed = 47)
 
 # Kaggle
-(trainingData, testingData) = df, spark.sql("select * from default.reviews_holdout")
+# (trainingData, testingData) = df, spark.sql("select * from default.reviews_holdout")
 
 # COMMAND ----------
 
@@ -150,6 +151,16 @@ tranformData_cleaned.show(5)
 
 # COMMAND ----------
 
+tranformData_cleaned.selectExpr("reviewText_token_features").show(10, False)
+
+# COMMAND ----------
+
+# nlp_pretrained = Pipeline.load("file:///databricks/driver/Spark_NLP_Example_all")
+# eda = nlp_pretrained.transform(trainingData)
+# eda.show(5)
+
+# COMMAND ----------
+
 # DBTITLE 1,Convert text to vector
 def getVector(field):
   # hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
@@ -205,3 +216,7 @@ testingDataTransform.write.format("csv").save(f"file:///databricks/driver/datafr
 # COMMAND ----------
 
 display(testingDataTransform.select('reviewID', 'prediction'))
+
+# COMMAND ----------
+
+pM = pip

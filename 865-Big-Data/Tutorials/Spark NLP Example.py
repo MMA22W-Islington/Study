@@ -8,7 +8,7 @@ df3 = spark.sql("select * from default.books_5_small")
 #data = df1.union(df2)
 data = df1.union(df2).union(df3)
 
-data = data.sample(False, 0.3, seed=0)
+# data = data.sample(False, 0.3, seed=0)
 
 data = data.cache()
 
@@ -90,6 +90,18 @@ nlp_pipeline = Pipeline(
 
 # COMMAND ----------
 
+pl = nlp_pipeline = Pipeline(
+    stages=[document_assembler, 
+            tokenizer,
+            normalizer,
+            stopwords_cleaner, 
+            stemmer, 
+            finisher])
+eda = pl.fit(trainingData).transform(trainingData)
+eda.selectExpr("token_features").show(10, False)
+
+# COMMAND ----------
+
 pipeline_model = nlp_pipeline.fit(trainingData)
 
 # COMMAND ----------
@@ -120,4 +132,29 @@ print("Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions)))
 
 # COMMAND ----------
 
+pipeline_model.save("file:///databricks/driver/Spark_NLP_Example_all")
 
+# COMMAND ----------
+
+test = spark.sql("select * from default.reviews_holdout")
+prediction = pipeline_model.transform(test)
+
+# COMMAND ----------
+
+prediction.select('reviewID', 'prediction').write.format("csv").save(f"file:///databricks/driver/submission_nlp_example.csv")
+
+# COMMAND ----------
+
+prediction.show(5)
+
+# COMMAND ----------
+
+display(prediction.select('reviewID', 'probability'))
+
+# COMMAND ----------
+
+transformed_data = pipeline_model.transform(trainingData)
+
+# COMMAND ----------
+
+transformed_data
