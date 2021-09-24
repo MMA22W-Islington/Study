@@ -27,6 +27,9 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import SQLTransformer
 from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.sql.functions import udf
+from pyspark.sql.functions import to_date, when
+from pyspark.sql.functions import col, size, split
+from pyspark.sql.functions import year, month, dayofmonth, dayofyear, weekofyear
 import datetime
 
 now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
@@ -49,14 +52,12 @@ df = df1.union(df2).union(df3)
 
 # Test
 # (trainingData, testingData) = df.sample(False, 0.1, seed=0).randomSplit([0.8, 0.2], seed = 47)
-(trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
+# (trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
 
 # Kaggle
 # (trainingData, testingData) = df, spark.sql("select * from default.reviews_holdout")
 
 # COMMAND ----------
-
-from pyspark.sql.functions import to_date
 
 # seems like changing the name will slow down the program
 df = df.withColumn(
@@ -64,9 +65,31 @@ df = df.withColumn(
   to_date(col("reviewTime"), "M d, y")
 )
 
+
+df = df.withColumn('reviewTime_year', year(col('reviewTime')))
+df = df.withColumn('reviewTime_month', month(col('reviewTime')))
+df = df.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
+df = df.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
+df = df.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+
+# check if review contains all caps words
+df = df.withColumn('reviewTextHasCapsWord', when(col('reviewText').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+df = df.withColumn('summaryHasCapsWord', when(col('summary').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+# check if review contians swear
+df = df.withColumn('reviewTextHasSwearWord', when(col('reviewText').rlike('\\*{2,}'),True).otherwise(False))
+df = df.withColumn('summaryHasSwearWord', when(col('summary').rlike('\\*{2,}'),True).otherwise(False))
+## Number of Exclaimation
+df = df.withColumn('reviewTextNumberExclamation', size(split(col('reviewText'), r"!")) - 1)
+df = df.withColumn('summaryNumberExclamation', size(split(col('summary'), r"!")) - 1)
+## Number of Exclaimation
+df = df.withColumn('reviewTextNumberComma', size(split(col('reviewText'), r",")) - 1)
+df = df.withColumn('summaryNumberComma', size(split(col('summary'), r",")) - 1)
+## Number of Exclaimation
+df = df.withColumn('reviewTextNumberPeriod', size(split(col('reviewText'), r"\.")) - 1)
+df = df.withColumn('summaryNumberPeriod', size(split(col('summary'), r"\.")) - 1)
+
 drop_list = [
   "asin",
-  "reviewTime",
   "reviewID",
   "reviewerID",
   "unixReviewTime", # reviewTime is the same as unixReviewTime
@@ -75,6 +98,28 @@ drop_list = [
 df = df.select([column for column in df.columns if column not in drop_list])
 
 # df.show()
+
+(trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import year, month, dayofmonth, dayofyear, weekofyear
+
+
+temp = df.withColumn('reviewTime_year', year(col('reviewTime')))
+temp = df.withColumn('reviewTime_month', month(col('reviewTime')))
+temp = df.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
+temp = df.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
+temp = df.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+
+temp.select([
+    'reviewTime',
+    'reviewTime_year',
+    'reviewTime_month',
+    'reviewTime_day',
+    'reviewTime_dayofy',
+    'reviewTime_week_no'
+    ]).show(20, truncate=20)
 
 # COMMAND ----------
 
@@ -93,6 +138,13 @@ def NLPPipe(fieldname):
       .setPolicy("pretty_all") \
       .setLowercase(True) \
       .setEncoding("UTF-8")
+  
+  # check how many caps
+#   regexTokenizer = RegexTokenizer() \
+#     .setInputCol(fieldname) \
+#     .setOutputCol(f"{fieldname}_regexCapsToken") \
+#     .setPattern("\\*+")
+#     .setPattern("\b[A-Z].*?\b")
 
   # convert document to array of tokens
   tokenizer = Tokenizer() \
@@ -122,6 +174,9 @@ def NLPPipe(fieldname):
 #    \.setLowercase(True)
 #       .setCleanupPatterns(["""[^\w\d\s]"""])
 
+#   regexTokenizer = SQLTransformer(
+#       statement=f"SELECT {fieldname}_regexCapsToken, {fieldname}_token_features, size({fieldname}_token_features) AS {fieldname}_TokenSize FROM __THIS__")
+  
   ## sentiment
   # https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.SentimentDLModel.html
   # https://nlp.johnsnowlabs.com/api/python/reference/autosummary/sparknlp.annotator.ViveknSentimentApproach.html
@@ -132,94 +187,46 @@ def NLPPipe(fieldname):
       .setOutputCols([f"{fieldname}_token_features"]) \
       .setOutputAsArray(True) \
       .setCleanAnnotations(False) 
-
-  sqlTrans = SQLTransformer(
-      statement=f"SELECT *, size({fieldname}_token_features) AS {fieldname}_TokenSize FROM __THIS__")
-
+# {fieldname}_regexCapsToken,
+  cleaned_token_size = SQLTransformer(
+      statement = f"SELECT * , size({fieldname}_token_features) AS {fieldname}_TokenSize FROM __THIS__"
+  )
+#   cleaned_token_size = SQLTransformer(
+#       statement=f"SELECT *, {fieldname}_token_features, size({fieldname}_token_features) AS {fieldname}_TokenSize FROM __THIS__")
+  
+  
+#   SELECT * FROM Email Addresses
+# WHERE Email Address ~* '%@chartio.com'
+# regexTokenizer,
   return ([
-    document_assembler, documentNormalizer, tokenizer, 
-    spellChecker, lemmatizer, stopwords_cleaner, 
-    normalizer, finisher, sqlTrans])
+    document_assembler, documentNormalizer, tokenizer,
+    spellChecker, lemmatizer, stopwords_cleaner,
+    normalizer, finisher, cleaned_token_size])
 
 
 # COMMAND ----------
 
-# DBTITLE 1,Review Text
-pipeline_pre_1 = NLPPipe("reviewText") + NLPPipe("summary")
-%time
-tranformData_cleaned_p = Pipeline(stages=pipeline_pre_1).fit(trainingData)
-# tranformData_cleaned_p.save(f"file:///databricks/driver/pipeline_pre_1_{now}")
-tranformData_cleaned = tranformData_cleaned_p.transform(trainingData)
-tranformData_cleaned.show(5)
+# MAGIC %time
+# MAGIC pipeline_obj = NLPPipe("reviewText") + NLPPipe("summary")
+# MAGIC eda = Pipeline(stages=pipeline_obj).fit(trainingData).transform(trainingData)
 
 # COMMAND ----------
 
-tranformData_cleaned.selectExpr("reviewText_token_features").show(10, False)
+cols = [
+  "summary", "reviewText",
+  "verified", "overall", "summary_TokenSize",  "reviewText_TokenSize", 
+  'reviewTextHasCapsWord', 'summaryHasCapsWord', 'reviewTextHasSwearWord', 'summaryHasSwearWord',
+  'reviewTextNumberExclamation',
+  'summaryNumberExclamation',
+  'reviewTextNumberComma',
+  'summaryNumberComma',
+  'reviewTextNumberPeriod',
+  'summaryNumberPeriod',
+  'reviewTime_year',
+  'reviewTime_month',
+  'reviewTime_day',
+  'reviewTime_dayofy',
+  'reviewTime_week_no'
+]
 
-# COMMAND ----------
-
-# nlp_pretrained = Pipeline.load("file:///databricks/driver/Spark_NLP_Example_all")
-# eda = nlp_pretrained.transform(trainingData)
-# eda.show(5)
-
-# COMMAND ----------
-
-# DBTITLE 1,Convert text to vector
-def getVector(field):
-  # hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
-  tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
-  idf = IDF(inputCol=f"{field}_rawFeatures", outputCol=f"{field}_idfFeatures", minDocFreq=5)
-  return [tf, idf]
-
-# Combine all features into one final "features" column
-assembler = VectorAssembler(inputCols=["verified", "overall", "summary_TokenSize", "summary_idfFeatures", "reviewText_TokenSize", "reviewText_idfFeatures"], outputCol="features")
-%time
-tranformData_features_p = Pipeline(stages=getVector("reviewText") + getVector("summary") + [assembler]).fit(tranformData_cleaned)
-tranformData_features_p.save("file:///databricks/driver/tranformData_features_{now}")
-tranformData_features = tranformData_features_p.transform(tranformData_cleaned)
-tranformData_features.show(5)
-
-# COMMAND ----------
-
-from pyspark.ml.classification import LogisticRegression
-
-# More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
-%time
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
-lrModel = Pipeline(stages=[lr]).fit(tranformData_features)
-lrModel.save("file:///databricks/driver/lr_model_{now}")
-
-# COMMAND ----------
-
-# Extract the summary from the returned LogisticRegressionModel instance trained
-# in the earlier example
-# trainingSummary = lrModel.summary
-
-# print("Training Accuracy:  " + str(trainingSummary.accuracy))
-# print("Training Precision: " + str(trainingSummary.precisionByLabel))
-# print("Training Recall:    " + str(trainingSummary.recallByLabel))
-# print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
-# print("Training AUC:       " + str(trainingSummary.areaUnderROC))
-
-# COMMAND ----------
-
-testingDataTransform = lrModel.transform(tranformData_features_p.transform(tranformData_cleaned_p.transform(testingData)))
-testingDataTransform.show(5)
-
-
-# COMMAND ----------
-
-# evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
-# print('Test Area Under ROC', evaluator.evaluate(testingDataTransform))
-
-# COMMAND ----------
-
-testingDataTransform.write.format("csv").save(f"file:///databricks/driver/dataframe_kaggle_{now")
-
-# COMMAND ----------
-
-display(testingDataTransform.select('reviewID', 'prediction'))
-
-# COMMAND ----------
-
-pM = pip
+eda.select(cols).show(20, truncate=20)
