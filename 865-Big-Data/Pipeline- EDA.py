@@ -65,12 +65,17 @@ df = df.withColumn(
   to_date(col("reviewTime"), "M d, y")
 )
 
-
+# Dates
 df = df.withColumn('reviewTime_year', year(col('reviewTime')))
 df = df.withColumn('reviewTime_month', month(col('reviewTime')))
 df = df.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
 df = df.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
 df = df.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+
+#Reviewer Name
+df = df.withColumn('reviewerName_Shorthand', when(col('reviewerName').rlike('\\. '),True).otherwise(False))
+df = df.withColumn('reviewerName_isAmazon', when(col('reviewerName').rlike('Amazon'),True).otherwise(False))
+df = df.withColumn('reviewerName_capsName', when(col('reviewerName').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
 
 # check if review contains all caps words
 df = df.withColumn('reviewTextHasCapsWord', when(col('reviewText').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
@@ -106,20 +111,18 @@ df = df.select([column for column in df.columns if column not in drop_list])
 from pyspark.sql.functions import year, month, dayofmonth, dayofyear, weekofyear
 
 
-temp = df.withColumn('reviewTime_year', year(col('reviewTime')))
-temp = df.withColumn('reviewTime_month', month(col('reviewTime')))
-temp = df.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
-temp = df.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
-temp = df.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+# temp = df.withColumn('reviewTime_year', year(col('reviewTime')))
 
+temp = df.withColumn('reviewerName_Shorthand', when(col('reviewerName').rlike('\\. '),True).otherwise(False))
+temp = temp.withColumn('reviewerName_isAmazon', when(col('reviewerName').rlike('Amazon'),True).otherwise(False))
+temp = temp.withColumn('reviewerName_capsName', when(col('reviewerName').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+ 
 temp.select([
-    'reviewTime',
-    'reviewTime_year',
-    'reviewTime_month',
-    'reviewTime_day',
-    'reviewTime_dayofy',
-    'reviewTime_week_no'
-    ]).show(20, truncate=20)
+    'reviewerName',
+    'reviewerName_Shorthand',
+    'reviewerName_isAmazon',
+    'reviewerName_capsName'
+    ]).show(120, truncate=20)
 
 # COMMAND ----------
 
@@ -212,6 +215,30 @@ def NLPPipe(fieldname):
 
 # COMMAND ----------
 
+cols = [
+  "summary", "reviewText",
+  "verified", "overall", "summary_TokenSize",  "reviewText_TokenSize", 
+  'reviewTextHasCapsWord', 'summaryHasCapsWord', 'reviewTextHasSwearWord', 'summaryHasSwearWord',
+  'reviewTextNumberExclamation',
+  'summaryNumberExclamation',
+  'reviewTextNumberComma',
+  'summaryNumberComma',
+  'reviewTextNumberPeriod',
+  'summaryNumberPeriod',
+  'reviewTime_year',
+  'reviewTime_month',
+  'reviewTime_day',
+  'reviewTime_dayofy',
+  'reviewTime_week_no',
+  'reviewerName_Shorthand',
+  'reviewerName_isAmazon',
+  'reviewerName_capsName'
+]
+eda.select(cols).show(20, truncate=20)
+
+# COMMAND ----------
+
+# DBTITLE 1,IRFAN starts here
 cols = [
   "summary", "reviewText",
   "verified", "overall", "summary_TokenSize",  "reviewText_TokenSize", 

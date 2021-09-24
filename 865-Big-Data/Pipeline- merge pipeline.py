@@ -65,12 +65,17 @@ df = df.withColumn(
   to_date(col("reviewTime"), "M d, y")
 )
 
-# date
+# Dates
 df = df.withColumn('reviewTime_year', year(col('reviewTime')))
 df = df.withColumn('reviewTime_month', month(col('reviewTime')))
 df = df.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
 df = df.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
 df = df.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+
+#Reviewer Name
+df = df.withColumn('reviewerName_Shorthand', when(col('reviewerName').rlike('\\. '),True).otherwise(False))
+df = df.withColumn('reviewerName_isAmazon', when(col('reviewerName').rlike('Amazon'),True).otherwise(False))
+df = df.withColumn('reviewerName_capsName', when(col('reviewerName').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
 
 # check if review contains all caps words
 df = df.withColumn('reviewTextHasCapsWord', when(col('reviewText').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
@@ -228,7 +233,10 @@ cols = [
   'reviewTime_month',
   'reviewTime_day',
   'reviewTime_dayofy',
-  'reviewTime_week_no'
+  'reviewTime_week_no',
+  'reviewerName_Shorthand',
+  'reviewerName_isAmazon',
+  'reviewerName_capsName'
 ]
 # Combine all features into one final "features" column
 assembler = VectorAssembler(inputCols=cols, outputCol="features")
