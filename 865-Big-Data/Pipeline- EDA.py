@@ -104,7 +104,7 @@ df = df.select([column for column in df.columns if column not in drop_list])
 
 # df.show()
 
-(trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
+# (trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
 
 # COMMAND ----------
 
@@ -211,7 +211,7 @@ def NLPPipe(fieldname):
 
 # MAGIC %time
 # MAGIC pipeline_obj = NLPPipe("reviewText") + NLPPipe("summary")
-# MAGIC eda = Pipeline(stages=pipeline_obj).fit(trainingData).transform(trainingData)
+# MAGIC eda = Pipeline(stages=pipeline_obj).fit(df).transform(df)
 
 # COMMAND ----------
 
