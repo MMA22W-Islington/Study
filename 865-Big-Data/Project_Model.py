@@ -103,11 +103,12 @@ finisher = Finisher() \
 #    .setInputCols(["document", "normalized"]) \
 #    .setOutputCol("embeddings")
 
-# hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
-
-# alternatively, CountVectorizer can also be used to get term frequency vectors
-
+# method one provided by prof
+# tf = CountVectorizer(inputCol="filtered", outputCol="rawFeatures", vocabSize=2000, minTF=1, maxDF=0.40)
 # idf = IDF(inputCol="rawFeatures", outputCol="idfFeatures")
+
+# method two
+# hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
 
 from pyspark.ml.feature import Word2Vec
 word2Vec = Word2Vec(vectorSize=3, minCount=0, inputCol="token_features", outputCol="w2v")
@@ -132,6 +133,21 @@ eda.show()
 
 # COMMAND ----------
 
+# DBTITLE 1,Feature Selection--UnivariateFeatureSelector
+# By default, the selection mode is numTopFeatures, with the default selectionThreshold sets to 50.
+
+# TODO: change the selected number of features based on the final data set
+
+from pyspark.ml.feature import UnivariateFeatureSelector
+from pyspark.ml.linalg import Vectors
+
+selector = UnivariateFeatureSelector(featuresCol="features", outputCol="selectedFeatures",
+                                     labelCol="label", selectionMode="numTopFeatures", selectionThreshold = 30)
+selector.setFeatureType("continuous").setLabelType("categorical").setSelectionThreshold(1)
+
+
+# COMMAND ----------
+
 # DBTITLE 1,Split Data-Shuffle
 # set seed for reproducibility
 (trainingData, testData) = df.randomSplit([0.9, 0.1], seed = 47)
@@ -151,7 +167,7 @@ from pyspark.ml.classification import LogisticRegression
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
+lr = LogisticRegression(maxIter=10, regParam=0.3, elasticNetParam=0.8, family="multinomial")
 lrModel = lr.fit(trainingDataTransformed)
 
 # COMMAND ----------
