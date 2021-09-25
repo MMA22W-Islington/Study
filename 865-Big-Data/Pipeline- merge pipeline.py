@@ -218,12 +218,12 @@ eda.selectExpr("reviewText").show(10, False)
 def getVector(field):
   # hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
   
-#   tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
-#   idf = IDF(inputCol=f"{field}_rawFeatures", outputCol=f"{field}_idfFeatures", minDocFreq=5)
-#   return [tf, idf]
+  tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
+  idf = IDF(inputCol=f"{field}_rawFeatures", outputCol=f"{field}_idfFeatures", minDocFreq=5)
+  return [tf, idf]
   
-  tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_idfFeatures", vocabSize=10000, minDF=5)
-  return [tf]
+#   tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_idfFeatures", vocabSize=10000, minDF=5)
+#   return [tf]
 
 cols = [
   "verified", "overall", "summary_TokenSize", "summary_idfFeatures", "reviewText_TokenSize", "reviewText_idfFeatures",
