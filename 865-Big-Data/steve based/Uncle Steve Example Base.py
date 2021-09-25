@@ -22,6 +22,7 @@ For Imbalance
 
 """
 Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
+Pipeline Name: 2021_09_25_02_18_52  or 2021_09_25_02_19_04
 pipeline summary: Basic Steve Model
 
 kaggle AUC: 0.72735
@@ -35,6 +36,10 @@ Training AUC:       0.842636473214598
 Test Area Under ROC 0.8412387227224285
 
 ---------------------------------------------------------------------------
+
+Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
+pipeline summary: Add weight 
+https://www.datatrigger.org/post/spark_3_weighted_random_forest/
 
 <Please Follow above Format>
 
@@ -73,6 +78,24 @@ drop_list = ['overall', 'summary', 'asin', 'reviewID', 'reviewerID', 'summary', 
 df = df.select([column for column in df.columns if column not in drop_list])
 df = df.na.drop(subset=["reviewText", "label"])
 
+
+
+
+# class Weight
+from pyspark.sql.functions import col, lit, when
+import pandas as pd
+counts = df.groupBy('label').count().toPandas()
+# Counts
+count_fraud = counts[counts['label']==1]['count'].values[0]
+count_total = counts['count'].sum()
+# Weights
+c = 2
+weight_fraud = count_total / (c * count_fraud)
+weight_no_fraud = count_total / (c * (count_total - count_fraud))
+df = df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherwise(weight_no_fraud))
+
+
+
 # Split
 (trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
 
@@ -101,12 +124,15 @@ stopwordsRemover = StopWordsRemover(inputCol="words", outputCol="filtered")
 # https://spark.apache.org/docs/2.2.0/ml-features.html#feature-extractors
 countVectors = CountVectorizer(inputCol="filtered", outputCol="features", vocabSize=10000, minDF=5)
 
+# Check everything seems ok
+# df.select('label', 'classWeightCol').where(col('label')==1).show(3)
 
 from pyspark.ml.classification import LogisticRegression
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+
 
 
 
@@ -173,6 +199,7 @@ print((test_df.count(), len(test_df.columns)))
 
 # COMMAND ----------
 
+test_df = test_df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherwise(weight_no_fraud))
 submit_predictions = pipelineFit.transform(test_df)
 
 # COMMAND ----------
