@@ -22,9 +22,9 @@ For Imbalance
 
 """
 Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
-pipeline summary: Basic Steve Model
+pipeline summary: 
 
-kaggle AUC: 0.72735
+kaggle AUC:
 
 Training Accuracy:  0.8414306146723333
 Training Precision: [0.8509137584299493, 0.6849417313747381]
@@ -36,20 +36,37 @@ Test Area Under ROC 0.8412387227224285
 
 ---------------------------------------------------------------------------
 
-<Please Follow above Format>
+Pipeline: 
+pipeline summary: 
 
+kaggle AUC:
+
+Testing AUC:--------------------------------------------------------------
+
+Pipeline:
+pipeline summary: 
+
+kaggle AUC:
+
+Testing AUC:
 ---------------------------------------------------------------------------
 
-<Please Follow above Format>
 
+Pipeline: 
+pipeline summary: 
+
+kaggle AUC:
+
+Testing AUC:
 ---------------------------------------------------------------------------
 
-<Please Follow above Format>
 
----------------------------------------------------------------------------
+Pipeline:
+pipeline summary: 
 
-<Please Follow above Format>
+kaggle AUC:
 
+Testing AUC:
 ---------------------------------------------------------------------------
 
 
