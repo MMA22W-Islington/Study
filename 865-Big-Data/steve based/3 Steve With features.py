@@ -151,8 +151,8 @@ idf = IDF(inputCol=f"rawFeatures", outputCol=f"idfFeatures", minDocFreq=5)
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol") # garbage
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
 
 
 # Build up the pipeline
