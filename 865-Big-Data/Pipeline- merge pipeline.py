@@ -145,13 +145,13 @@ def NLPPipe(fieldname):
       .setInputCols([f"{fieldname}_removedHTML"]) \
       .setOutputCol(f"{fieldname}_token")
 
-  spellChecker = ContextSpellCheckerModel.pretrained() \
-      .setInputCols(f"{fieldname}_token") \
-      .setOutputCol(f"{fieldname}_corrected")
+#   spellChecker = ContextSpellCheckerModel.pretrained() \
+#       .setInputCols(f"{fieldname}_token") \
+#       .setOutputCol(f"{fieldname}_corrected")
 
-  lemmatizer = LemmatizerModel.pretrained() \
-      .setInputCols([f"{fieldname}_corrected"]) \
-      .setOutputCol(f"{fieldname}_lemma")
+#   lemmatizer = LemmatizerModel.pretrained() \
+#       .setInputCols([f"{fieldname}_corrected"]) \
+#       .setOutputCol(f"{fieldname}_lemma")
 
   # # remove stopwords
   stopwords_cleaner = StopWordsCleaner()\
