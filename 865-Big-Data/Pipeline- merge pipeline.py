@@ -51,8 +51,9 @@ df3 = df3.withColumn('category', lit("books"))
 df = df1.union(df2).union(df3)
 
 # Test
-# (trainingData, testingData) = df.sample(False, 0.1, seed=0).randomSplit([0.8, 0.2], seed = 47)
-(trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
+(trainingData, testingData) = df.sample(False, 0.1, seed=0).randomSplit([0.8, 0.2], seed = 47)
+# (trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
+# (trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
 
 # Kaggle
 # (trainingData, testingData) = df, spark.sql("select * from default.reviews_holdout")
