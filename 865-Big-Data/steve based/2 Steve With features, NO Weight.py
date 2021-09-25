@@ -21,8 +21,8 @@ For Imbalance
 # COMMAND ----------
 
 """
-Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
 Pipeline Name: 2021_09_25_02_18_52  or 2021_09_25_02_19_04
+Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
 pipeline summary: Basic Steve Model
 
 kaggle AUC: 0.72735
@@ -36,16 +36,50 @@ Training AUC:       0.842636473214598
 Test Area Under ROC 0.8412387227224285
 
 ---------------------------------------------------------------------------
-
+Pipeline Name; 2021_09_25_03_06_11
 Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
-pipeline summary: Add weight 
+pipeline summary: Added weight 
 https://www.datatrigger.org/post/spark_3_weighted_random_forest/
 
-<Please Follow above Format>
+kaggle AUC: 0.72431
+
+Training Accuracy:  0.7420567701313684
+Training Precision: [0.6958397646011562, 0.8166218072466968]
+Training Recall:    [0.8595904654558897, 0.6246417823832509]
+Training FMeasure:  [0.7690955409993384, 0.7078456777536136]
+Training AUC:       0.8426555831776456
+
+Test Area Under ROC 0.8414762990598188
 
 ---------------------------------------------------------------------------
 
-<Please Follow above Format>
+Pipeline Name; 2021_09_25_03_06_11
+Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
+pipeline summary: remove weight , the previous one is def a bust, need to 
+find a different way, this version focus on adding more features.
+
+interal test:
+
+1------>
+"reviewTime_year",
+"reviewTime_month",
+"reviewTime_day",
+"reviewTime_dayofy",
+"reviewTime_week_no",
+"reviewerName_Shorthand",
+"reviewerName_isAmazon",
+"reviewerName_capsName",
+"reviewTextHasCapsWord",
+"summaryHasCapsWord",
+"reviewTextHasSwearWord",
+"summaryHasSwearWord",
+"reviewTextNumberExclamation",
+"summaryNumberExclamation",
+"reviewTextNumberComma",
+"summaryNumberComma",
+"reviewTextNumberPeriod",
+"summaryNumberPeriod"
+
 
 ---------------------------------------------------------------------------
 
@@ -73,26 +107,80 @@ print((df.count(), len(df.columns)))
 # COMMAND ----------
 
 # DBTITLE 1,Data Wrangling/Prep
+def featureEngineering(df): 
+  res = df.withColumn(
+    "reviewTime",
+    to_date(col("reviewTime"), "M d, y")
+  )
+
+  # Dates
+  res = res.withColumn('reviewTime_year', year(col('reviewTime')))
+  res = res.withColumn('reviewTime_month', month(col('reviewTime')))
+  res = res.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
+  res = res.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
+  res = res.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+
+  #Reviewer Name
+  res = res.withColumn('reviewerName_Shorthand', when(col('reviewerName').rlike('\\. '),True).otherwise(False))
+  res = res.withColumn('reviewerName_isAmazon', when(col('reviewerName').rlike('Amazon'),True).otherwise(False))
+  res = res.withColumn('reviewerName_capsName', when(col('reviewerName').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+
+  # check if review contains all caps words
+  res = res.withColumn('reviewTextHasCapsWord', when(col('reviewText').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+  res = res.withColumn('summaryHasCapsWord', when(col('summary').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+  # check if review contians swear
+  res.withColumn('reviewTextHasSwearWord', when(col('reviewText').rlike('\\*{2,}'),True).otherwise(False))
+  res.withColumn('summaryHasSwearWord', when(col('summary').rlike('\\*{2,}'),True).otherwise(False))
+  ## Number of Exclaimation
+  res = res.withColumn('reviewTextNumberExclamation', size(split(col('reviewText'), r"!")) - 1)
+  res = res.withColumn('summaryNumberExclamation', size(split(col('summary'), r"!")) - 1)
+  ## Number of Exclaimation
+  res = res.withColumn('reviewTextNumberComma', size(split(col('reviewText'), r",")) - 1)
+  res = res.withColumn('summaryNumberComma', size(split(col('summary'), r",")) - 1)
+  ## Number of Exclaimation
+  res = res.withColumn('reviewTextNumberPeriod', size(split(col('reviewText'), r"\.")) - 1)
+  res = res.withColumn('summaryNumberPeriod', size(split(col('summary'), r"\.")) - 1)
+  
+  return (res, [
+    "reviewTime_year",
+    "reviewTime_month",
+    "reviewTime_day",
+    "reviewTime_dayofy",
+    "reviewTime_week_no",
+    "reviewerName_Shorthand",
+    "reviewerName_isAmazon",
+    "reviewerName_capsName",
+    "reviewTextHasCapsWord",
+    "summaryHasCapsWord",
+    "reviewTextHasSwearWord",
+    "summaryHasSwearWord",
+    "reviewTextNumberExclamation",
+    "summaryNumberExclamation",
+    "reviewTextNumberComma",
+    "summaryNumberComma",
+    "reviewTextNumberPeriod",
+    "summaryNumberPeriod"
+  ])
+
+df, featureList = featureEngineering(df)
 # For our intitial modeling efforts, we are not going to use the following features
 drop_list = ['overall', 'summary', 'asin', 'reviewID', 'reviewerID', 'summary', 'unixReviewTime','reviewTime', 'image', 'style', 'verified', 'reviewerName']
 df = df.select([column for column in df.columns if column not in drop_list])
 df = df.na.drop(subset=["reviewText", "label"])
 
 
-
-
-# class Weight
-from pyspark.sql.functions import col, lit, when
-import pandas as pd
-counts = df.groupBy('label').count().toPandas()
-# Counts
-count_fraud = counts[counts['label']==1]['count'].values[0]
-count_total = counts['count'].sum()
-# Weights
-c = 2
-weight_fraud = count_total / (c * count_fraud)
-weight_no_fraud = count_total / (c * (count_total - count_fraud))
-df = df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherwise(weight_no_fraud))
+# class Weight - garbage
+# from pyspark.sql.functions import col, lit, when
+# import pandas as pd
+# counts = df.groupBy('label').count().toPandas()
+# # Counts
+# count_fraud = counts[counts['label']==1]['count'].values[0]
+# count_total = counts['count'].sum()
+# # Weights
+# c = 2
+# weight_fraud = count_total / (c * count_fraud)
+# weight_no_fraud = count_total / (c * (count_total - count_fraud))
+# df = df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherwise(weight_no_fraud))
 
 
 
@@ -131,7 +219,8 @@ from pyspark.ml.classification import LogisticRegression
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol") # garbage
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
 
 
 
@@ -185,9 +274,20 @@ predictions = pipelineFit.transform(testingData)
 # COMMAND ----------
 
 # DBTITLE 1,Use Model to Predict Test Data; Evaluate
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
 
+acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
+pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
+rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
+pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
+auc_evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
 evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
+
+print("Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions)))
+print("Test Precision      = %g" % (pre_evaluator.evaluate(predictions)))
+print("Test Recall         = %g" % (rec_evaluator.evaluate(predictions)))
+print("Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions)))
+print("Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions)))
 print('Test Area Under ROC', evaluator.evaluate(predictions))
 
 # COMMAND ----------
@@ -199,7 +299,7 @@ print((test_df.count(), len(test_df.columns)))
 
 # COMMAND ----------
 
-test_df = test_df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherwise(weight_no_fraud))
+
 submit_predictions = pipelineFit.transform(test_df)
 
 # COMMAND ----------

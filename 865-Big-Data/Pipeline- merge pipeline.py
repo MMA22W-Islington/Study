@@ -51,7 +51,7 @@ df3 = df3.withColumn('category', lit("books"))
 df = df1.union(df2).union(df3)
 
 # Test
-(trainingData, testingData) = df.sample(False, 0.1, seed=0).randomSplit([0.8, 0.2], seed = 47)
+(trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
 # (trainingData, testingData) = df.sample(False, 0.30, seed=0).randomSplit([0.8, 0.2], seed = 47)
 # (trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
 
@@ -217,9 +217,13 @@ eda.selectExpr("reviewText").show(10, False)
 # DBTITLE 1,Convert text to vector
 def getVector(field):
   # hashingTF = HashingTF(inputCol="token_features", outputCol="rawFeatures", numFeatures=20)
-  tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
-  idf = IDF(inputCol=f"{field}_rawFeatures", outputCol=f"{field}_idfFeatures", minDocFreq=5)
-  return [tf, idf]
+  
+#   tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_rawFeatures", vocabSize=10000, minTF=1, minDF=50, maxDF=0.40)
+#   idf = IDF(inputCol=f"{field}_rawFeatures", outputCol=f"{field}_idfFeatures", minDocFreq=5)
+#   return [tf, idf]
+  
+  tf = CountVectorizer(inputCol=f"{field}_token_features", outputCol=f"{field}_idfFeatures", vocabSize=10000, minDF=5)
+  return [tf]
 
 cols = [
   "verified", "overall", "summary_TokenSize", "summary_idfFeatures", "reviewText_TokenSize", "reviewText_idfFeatures",
@@ -256,29 +260,35 @@ lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
 pipeline_obj = NLPPipe("reviewText") + NLPPipe("summary") + getVector("reviewText") + getVector("summary") + [assembler, lr]
 %time
 model_pipeline = Pipeline(stages=pipeline_obj).fit(trainingData)
-
-# pipeline_model.save("file:///databricks/driver/Spark_NLP_Example_all") # need now
+import datetime
+now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+pipelineFit.save(f"file:///databricks/driver/models/{now}")
+now # name
 
 # COMMAND ----------
 
 # Extract the summary from the returned LogisticRegressionModel instance trained
 # in the earlier example
-# trainingSummary = lrModel.summary
+trainingSummary = pipelineFit.stages[-1].summary
 
-# print("Training Accuracy:  " + str(trainingSummary.accuracy))
-# print("Training Precision: " + str(trainingSummary.precisionByLabel))
-# print("Training Recall:    " + str(trainingSummary.recallByLabel))
-# print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
-# print("Training AUC:       " + str(trainingSummary.areaUnderROC))
+print("Training Accuracy:  " + str(trainingSummary.accuracy))
+print("Training Precision: " + str(trainingSummary.precisionByLabel))
+print("Training Recall:    " + str(trainingSummary.recallByLabel))
+print("Training FMeasure:  " + str(trainingSummary.fMeasureByLabel()))
+print("Training AUC:       " + str(trainingSummary.areaUnderROC))
+
+# move to next cell to check
+
+# trainingSummary.roc.show()
+
+# Obtain the objective per iteration
+# objectiveHistory = trainingSummary.objectiveHistory
+# for objective in objectiveHistory:
+#     print(objective)
 
 # COMMAND ----------
 
-prediction = model_pipeline.transform(testingData)
-
-# COMMAND ----------
-
-predictions.groupBy("label").count().show()
-predictions.groupBy("prediction").count().show()
+predictions = pipelineFit.transform(testingData)
 
 # COMMAND ----------
 
@@ -289,21 +299,69 @@ pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCo
 rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
 pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
 auc_evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
+evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
 
 print("Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions)))
 print("Test Precision      = %g" % (pre_evaluator.evaluate(predictions)))
 print("Test Recall         = %g" % (rec_evaluator.evaluate(predictions)))
 print("Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions)))
 print("Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions)))
+print('Test Area Under ROC', evaluator.evaluate(predictions))
 
 # COMMAND ----------
 
-# testingDataTransform.write.format("csv").save(f"file:///databricks/driver/dataframe_kaggle_{now")
+# Load in the tables
+test_df = spark.sql("select * from default.reviews_holdout")
+print((test_df.count(), len(test_df.columns)))
 
 # COMMAND ----------
 
-display(testingDataTransform.select('reviewID', 'prediction'))
+# features
+test_df = test_df.withColumn(
+  "reviewTime",
+  to_date(col("reviewTime"), "M d, y")
+)
+
+# Dates
+test_df = test_df.withColumn('reviewTime_year', year(col('reviewTime')))
+test_df = test_df.withColumn('reviewTime_month', month(col('reviewTime')))
+test_df = test_df.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
+test_df = test_df.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
+test_df = test_df.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+
+#Reviewer Name
+test_df = test_df.withColumn('reviewerName_Shorthand', when(col('reviewerName').rlike('\\. '),True).otherwise(False))
+test_df = test_df.withColumn('reviewerName_isAmazon', when(col('reviewerName').rlike('Amazon'),True).otherwise(False))
+test_df = test_df.withColumn('reviewerName_capsName', when(col('reviewerName').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+
+# check if review contains all caps words
+test_df = test_df.withColumn('reviewTextHasCapsWord', when(col('reviewText').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+test_df = test_df.withColumn('summaryHasCapsWord', when(col('summary').rlike('\\b[A-Z]{2,}\\b'),True).otherwise(False))
+# check if review contians swear
+test_df.withColumn('reviewTextHasSwearWord', when(col('reviewText').rlike('\\*{2,}'),True).otherwise(False))
+test_df.withColumn('summaryHasSwearWord', when(col('summary').rlike('\\*{2,}'),True).otherwise(False))
+## Number of Exclaimation
+test_df = test_df.withColumn('reviewTextNumberExclamation', size(split(col('reviewText'), r"!")) - 1)
+test_df = test_df.withColumn('summaryNumberExclamation', size(split(col('summary'), r"!")) - 1)
+## Number of Exclaimation
+test_df = test_df.withColumn('reviewTextNumberComma', size(split(col('reviewText'), r",")) - 1)
+test_df = test_df.withColumn('summaryNumberComma', size(split(col('summary'), r",")) - 1)
+## Number of Exclaimation
+test_df = test_df.withColumn('reviewTextNumberPeriod', size(split(col('reviewText'), r"\.")) - 1)
+test_df = test_df.withColumn('summaryNumberPeriod', size(split(col('summary'), r"\.")) - 1)
+
+
+
+submit_predictions = pipelineFit.transform(test_df)
 
 # COMMAND ----------
 
-# pM = pip
+from pyspark.sql.functions import udf
+from pyspark.sql.types import FloatType
+
+lastElement=udf(lambda v:float(v[1]),FloatType())
+submit_predictions.select('reviewID', lastElement('probability').alias("label")).display()
+
+# COMMAND ----------
+
+!ls models

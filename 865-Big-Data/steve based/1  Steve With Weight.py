@@ -21,10 +21,11 @@ For Imbalance
 # COMMAND ----------
 
 """
+Pipeline Name: 2021_09_25_02_18_52  or 2021_09_25_02_19_04
 Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
-pipeline summary: 
+pipeline summary: Basic Steve Model
 
-kaggle AUC:
+kaggle AUC: 0.72735
 
 Training Accuracy:  0.8414306146723333
 Training Precision: [0.8509137584299493, 0.6849417313747381]
@@ -35,38 +36,33 @@ Training AUC:       0.842636473214598
 Test Area Under ROC 0.8412387227224285
 
 ---------------------------------------------------------------------------
+Pipeline Name; 2021_09_25_03_06_11
+Pipeline: regexTokenizer, stopwordsRemover, countVectors, lr
+pipeline summary: Added weight 
+https://www.datatrigger.org/post/spark_3_weighted_random_forest/
 
-Pipeline: 
-pipeline summary: 
+kaggle AUC: 0.72431
 
-kaggle AUC:
+Training Accuracy:  0.7420567701313684
+Training Precision: [0.6958397646011562, 0.8166218072466968]
+Training Recall:    [0.8595904654558897, 0.6246417823832509]
+Training FMeasure:  [0.7690955409993384, 0.7078456777536136]
+Training AUC:       0.8426555831776456
 
-Testing AUC:--------------------------------------------------------------
+Test Area Under ROC 0.8414762990598188
 
-Pipeline:
-pipeline summary: 
-
-kaggle AUC:
-
-Testing AUC:
 ---------------------------------------------------------------------------
 
+<Please Follow above Format>
 
-Pipeline: 
-pipeline summary: 
-
-kaggle AUC:
-
-Testing AUC:
 ---------------------------------------------------------------------------
 
+<Please Follow above Format>
 
-Pipeline:
-pipeline summary: 
+---------------------------------------------------------------------------
 
-kaggle AUC:
+<Please Follow above Format>
 
-Testing AUC:
 ---------------------------------------------------------------------------
 
 
@@ -89,6 +85,24 @@ print((df.count(), len(df.columns)))
 drop_list = ['overall', 'summary', 'asin', 'reviewID', 'reviewerID', 'summary', 'unixReviewTime','reviewTime', 'image', 'style', 'verified', 'reviewerName']
 df = df.select([column for column in df.columns if column not in drop_list])
 df = df.na.drop(subset=["reviewText", "label"])
+
+
+
+
+# class Weight
+from pyspark.sql.functions import col, lit, when
+import pandas as pd
+counts = df.groupBy('label').count().toPandas()
+# Counts
+count_fraud = counts[counts['label']==1]['count'].values[0]
+count_total = counts['count'].sum()
+# Weights
+c = 2
+weight_fraud = count_total / (c * count_fraud)
+weight_no_fraud = count_total / (c * (count_total - count_fraud))
+df = df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherwise(weight_no_fraud))
+
+
 
 # Split
 (trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
@@ -118,12 +132,15 @@ stopwordsRemover = StopWordsRemover(inputCol="words", outputCol="filtered")
 # https://spark.apache.org/docs/2.2.0/ml-features.html#feature-extractors
 countVectors = CountVectorizer(inputCol="filtered", outputCol="features", vocabSize=10000, minDF=5)
 
+# Check everything seems ok
+# df.select('label', 'classWeightCol').where(col('label')==1).show(3)
 
 from pyspark.ml.classification import LogisticRegression
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+
 
 
 
@@ -189,6 +206,7 @@ test_df = spark.sql("select * from default.reviews_holdout")
 print((test_df.count(), len(test_df.columns)))
 
 # COMMAND ----------
+
 
 submit_predictions = pipelineFit.transform(test_df)
 
