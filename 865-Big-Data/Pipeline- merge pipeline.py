@@ -61,6 +61,7 @@ df = df1.union(df2).union(df3)
 # COMMAND ----------
 
 # seems like changing the name will slow down the program
+df = df.na.drop(subset=["reviewText", "label", "summary"])
 df = df.withColumn(
   "reviewTime",
   to_date(col("reviewTime"), "M d, y")

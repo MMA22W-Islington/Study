@@ -154,12 +154,14 @@ def NLPPipe(fieldname):
       .setInputCols([f"{fieldname}_removedHTML"]) \
       .setOutputCol(f"{fieldname}_token")
 
-  spellChecker = ContextSpellCheckerModel.pretrained() \
-      .setInputCols(f"{fieldname}_token") \
-      .setOutputCol(f"{fieldname}_corrected")
+#   spellChecker = ContextSpellCheckerModel.pretrained() \
+#       .setInputCols(f"{fieldname}_token") \
+#       .setOutputCol(f"{fieldname}_corrected")
 
+
+#       .setInputCols([f"{fieldname}_corrected"]) \
   lemmatizer = LemmatizerModel.pretrained() \
-      .setInputCols([f"{fieldname}_corrected"]) \
+      .setInputCols([f"{fieldname}_token"]) \
       .setOutputCol(f"{fieldname}_lemma")
 
   # remove stopwords
@@ -196,15 +198,18 @@ def NLPPipe(fieldname):
 #   idf = IDF(inputCol=f"rawFeatures", outputCol=f"idfFeatures", minDocFreq=5)
 
 
+#   cleaned_token_size = SQLTransformer(
+#       statement = f"SELECT * , size({fieldname}_filtered) AS {fieldname}_tokenSize FROM __THIS__"
+#   )
   cleaned_token_size = SQLTransformer(
-      statement = f"SELECT * , size({fieldname}_filtered) AS {fieldname}_tokenSize FROM __THIS__"
+      statement = f"SELECT * , size({fieldname}_token_features) AS {fieldname}_tokenSize FROM __THIS__"
   )
   
   return [
     document_assembler, 
     documentNormalizer, 
     tokenizer, 
-    spellChecker,
+#     spellChecker,
     lemmatizer,
     stopwords_cleaner,
     normalizer,
@@ -234,12 +239,6 @@ pipelineStages = pipelineObj + [assembler, lr]
 
 # COMMAND ----------
 
-# p, o = NLPPipe("reviewText")
-# eda = Pipeline(stages=p).fit(trainingData).transform(trainingData)
-# eda.select(["reviewText_words"]).show(5, truncate = 140)
-
-# COMMAND ----------
-
 # DBTITLE 1,Transform Training Data
 # Fit the pipeline to training documents.
 pipeline = Pipeline(stages=pipelineStages)
@@ -250,12 +249,6 @@ pipelineFit.save(f"file:///databricks/driver/models/{now}")
 comment = [f"Pipeline name: {now}"]
 comment +=  ["Pipeline object: <insert here>"]
 comment +=  ["Pipeline summary: <insert here>\n\n\n"]
-
-# COMMAND ----------
-
-# import datetime
-# now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-# pipelineFit.save(f"file:///databricks/driver/models/{now}") # need now
 
 # COMMAND ----------
 
