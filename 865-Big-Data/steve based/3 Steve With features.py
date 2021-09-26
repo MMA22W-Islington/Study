@@ -93,7 +93,9 @@ def featureEngineering(df):
 #     "reviewTextNumberComma",
 #     "summaryNumberComma",
     "reviewTextNumberPeriod",
-#     "summaryNumberPeriod"
+#     "summaryNumberPeriod",
+    "overall", 
+    "verified"
   ])
 
 df, featureList = featureEngineering(df)
@@ -151,8 +153,8 @@ idf = IDF(inputCol=f"rawFeatures", outputCol=f"idfFeatures", minDocFreq=5)
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
-# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
+# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
 
 
 # Build up the pipeline
@@ -172,8 +174,7 @@ now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 pipelineFit.save(f"file:///databricks/driver/models/{now}")
 comment = [f"Pipeline name: {now}"]
 comment +=  ["Pipeline object: <insert here>"]
-comment +=  ["Pipeline summary: <insert here>"]
-comment += ["added: 'overall , 'verified'\n\n\n"]
+comment +=  ["Pipeline summary: <insert here>\n\n\n"]
 
 # COMMAND ----------
 
