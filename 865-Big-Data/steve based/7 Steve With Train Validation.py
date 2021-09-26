@@ -23,6 +23,10 @@ For Imbalance
 
 # COMMAND ----------
 
+
+
+# COMMAND ----------
+
 # DBTITLE 1,Load Data
 # Load in one of the tables
 df1 = spark.sql("select * from default.video_games_5")
@@ -44,11 +48,11 @@ def featureEngineering(df):
   )
 
   # Dates
-  res = res.withColumn('reviewTime_year', year(col('reviewTime')))
-  res = res.withColumn('reviewTime_month', month(col('reviewTime')))
-  res = res.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
-  res = res.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
-  res = res.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
+#   res = res.withColumn('reviewTime_year', year(col('reviewTime')))
+#   res = res.withColumn('reviewTime_month', month(col('reviewTime')))
+#   res = res.withColumn('reviewTime_day', dayofmonth(col('reviewTime')))
+#   res = res.withColumn('reviewTime_dayofy', dayofyear(col('reviewTime')))
+#   res = res.withColumn('reviewTime_week_no', weekofyear(col('reviewTime')))
 
 #   #Reviewer Name
   res = res.withColumn('reviewerName_Shorthand', when(col('reviewerName').rlike('\\. '),True).otherwise(False))
@@ -72,34 +76,35 @@ def featureEngineering(df):
   res = res.withColumn('summaryNumberPeriod', size(split(col('summary'), r"\.")) - 1)
   
   return (res, [
-#    "reviewTime_year",
+#     "reviewTime_year",
 #     "reviewTime_month",
 #     "reviewTime_day",
 #     "reviewTime_dayofy",
 #     "reviewTime_week_no",
 #    "reviewerName_Shorthand",
 #     "reviewerName_isAmazon",
-    "reviewerName_capsName",
+#    "reviewerName_capsName",
     "reviewTextHasCapsWord",
     "summaryHasCapsWord",
-    "reviewTextHasSwearWord",
-    "summaryHasSwearWord",
+#    "reviewTextHasSwearWord",
+#    "summaryHasSwearWord",
 #    "reviewTextNumberExclamation",
-#    "summaryNumberExclamation",
+#   "summaryNumberExclamation",
 #     "reviewTextNumberComma",
 #     "summaryNumberComma",
 #    "reviewTextNumberPeriod",
 #     "summaryNumberPeriod",
-    "overall", 
+    
+     "overall", 
     "verified"
   ])
 
 df, featureList = featureEngineering(df)
 # For our intitial modeling efforts, we are not going to use the following features
-drop_list = ['summary', 'asin', 'reviewID', 'reviewerID', 'summary', 'unixReviewTime','reviewTime', 'image', 'style', 'reviewerName']
+drop_list = ['asin', 'reviewID', 'unixReviewTime','reviewTime', 'image', 'style', 'reviewerName']
 df = df.select([column for column in df.columns if column not in drop_list])
-df = df.na.drop(subset=["reviewText", "label"])
-
+df = df.na.drop(subset=["reviewText", "label", "summary"])
+print((df.count(), len(df.columns)))
 
 # class Weight - garbage
 import pandas as pd
@@ -122,40 +127,78 @@ df = df.withColumn("classWeightCol", when(col("label") ==1, weight_fraud).otherw
 
 # DBTITLE 1,Create a Data Transformation/Preprocessing Pipeline
 from pyspark.ml import Pipeline
-from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, IDF, VectorAssembler
+from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, IDF, VectorAssembler, SQLTransformer
+from sparknlp.annotator import ContextSpellCheckerModel, LemmatizerModel
 from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit
 
 
-# We'll tokenize the text using a simple RegexTokenizer
-regexTokenizer = RegexTokenizer(inputCol="reviewText", outputCol="words", pattern="\\W")
+def NLPPipe(fieldname):
+   # We'll tokenize the text using a simple RegexTokenizer
+  regexTokenizer = RegexTokenizer(inputCol=fieldname, outputCol=f"{fieldname}_words", pattern="\\W")
+
+  
+# Regex first
+#   spellChecker = ContextSpellCheckerModel.pretrained() \
+#       .setInputCols(f"{fieldname}_words") \
+#       .setOutputCol(f"{fieldname}_corrected")
+
+#   lemmatizer = LemmatizerModel.pretrained() \
+#       .setInputCols([f"{fieldname}_corrected"]) \
+#       .setOutputCol(f"{fieldname}_lemma")
+
+  # Remove standard Stopwords
+  stopwordsRemover = StopWordsRemover(inputCol=f"{fieldname}_words", outputCol=f"{fieldname}_filtered")
 
 
-# Remove standard Stopwords
-stopwordsRemover = StopWordsRemover(inputCol="words", outputCol="filtered")
+  # Vectorize the sentences using simple BOW method. Other methods are possible:
+  # https://spark.apache.org/docs/2.2.0/ml-features.html#feature-extractors
+  countVectors = CountVectorizer(inputCol=f"{fieldname}_filtered", outputCol=f"{fieldname}_rawFeatures", vocabSize=10000, minDF=5)
 
 
-# Vectorize the sentences using simple BOW method. Other methods are possible:
-# https://spark.apache.org/docs/2.2.0/ml-features.html#feature-extractors
-countVectors = CountVectorizer(inputCol="filtered", outputCol="rawFeatures", vocabSize=10000, minDF=5)
+  # IDF
+#   idf = IDF(inputCol=f"rawFeatures", outputCol=f"idfFeatures", minDocFreq=5)
 
-# IDF
-idf = IDF(inputCol=f"rawFeatures", outputCol=f"idfFeatures", minDocFreq=5)
 
-# Check everything seems ok
-# df.select('label', 'classWeightCol').where(col('label')==1).show(3)
+  cleaned_token_size = SQLTransformer(
+      statement = f"SELECT * , size({fieldname}_filtered) AS {fieldname}_tokenSize FROM __THIS__"
+  )
+  
+  return [regexTokenizer, stopwordsRemover, countVectors, cleaned_token_size], [f"{fieldname}_rawFeatures", f"{fieldname}_tokenSize"]
+
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
-# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
+# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+lr = LogisticRegression(maxIter=20)  
 
+paramGrid = ParamGridBuilder()\
+    .addGrid(lr.regParam, [0.1, 0.01]) \
+    .addGrid(lr.fitIntercept, [False, True])\
+    .addGrid(lr.elasticNetParam, [0.0, 0.3, 0.5, 1.0])\
+    .build()
 
+# In this case the estimator is simply the linear regression.
+# A TrainValidationSplit requires an Estimator, a set of Estimator ParamMaps, and an Evaluator.
+tvs = TrainValidationSplit(estimator=lr,
+                           estimatorParamMaps=paramGrid,
+                           evaluator=RegressionEvaluator(),
+                           # 80% of the data will be used for training, 20% for validation.
+                           trainRatio=0.8)
 
 # Build up the pipeline
-cols = ["rawFeatures"] + featureList
+cols = featureList
+pipelineObj = []
+
+for field in [ "reviewText", "summary"]: #, "summary"
+  nlpPipe, output = NLPPipe(field)
+  cols += output
+  pipelineObj += nlpPipe
+  
 assembler = VectorAssembler(inputCols=cols, outputCol="features")
 
-pipelineStages = [regexTokenizer, stopwordsRemover, countVectors, assembler] + [lr]
+pipelineStages = pipelineObj + [assembler, tvs]
 
 # COMMAND ----------
 
@@ -181,14 +224,14 @@ comment +=  ["Pipeline summary: <insert here>\n\n\n"]
 # DBTITLE 1,Show Training Metrics
 # Extract the summary from the returned LogisticRegressionModel instance trained
 # in the earlier example
-trainingSummary = pipelineFit.stages[-1].summary
+# trainingSummary = pipelineFit.stages[-1].summary
 
-comment += ["Training Accuracy:  " + str(trainingSummary.accuracy)]
-comment += ["Training Precision: " + str(trainingSummary.precisionByLabel)]
-comment += ["Training Recall:    " + str(trainingSummary.recallByLabel)]
-comment += ["Training FMeasure:  " + str(trainingSummary.fMeasureByLabel())]
-comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
-comment += ["\n"]
+# comment += ["Training Accuracy:  " + str(trainingSummary.accuracy)]
+# comment += ["Training Precision: " + str(trainingSummary.precisionByLabel)]
+# comment += ["Training Recall:    " + str(trainingSummary.recallByLabel)]
+# comment += ["Training FMeasure:  " + str(trainingSummary.fMeasureByLabel())]
+# comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
+# comment += ["\n"]
 
 # move to next cell to check
 
@@ -227,19 +270,6 @@ comment += ["Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions))]
 # Load in the tables
 test_df = spark.sql("select * from default.reviews_holdout")
 print((test_df.count(), len(test_df.columns)))
-test_df.show()
-
-# COMMAND ----------
-
-### Get count of nan or missing values in pyspark
- 
-from pyspark.sql.functions import isnan, when, count, col
-
-test_df.select([count(when(isnan('overall') | col('overall').isNull() , True))]).show()
-
-test_df.na.drop().count()
-
-test_df.select('verified').distinct().collect()
 
 # COMMAND ----------
 
@@ -266,7 +296,3 @@ comment += ["-------------------------------------------------------------------
 # generate a template to put it on top
 for line in comment:
   print(line)
-
-# COMMAND ----------
-
-# submit_predictions.select('reviewID', lastElement('probability').alias("label")).write.format("csv").save(f"file:///databricks/driver/answers/{now}.csv")

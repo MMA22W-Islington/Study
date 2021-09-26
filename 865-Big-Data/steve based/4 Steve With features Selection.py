@@ -233,6 +233,10 @@ test_df.show()
 
 # COMMAND ----------
 
+test_df.na.drop(subset=["summary"]).count()
+
+# COMMAND ----------
+
 ### Get count of nan or missing values in pyspark
  
 from pyspark.sql.functions import isnan, when, count, col
