@@ -132,6 +132,7 @@ from sparknlp.annotator import ContextSpellCheckerModel, LemmatizerModel
 from pyspark.ml.classification import LogisticRegression
 from sparknlp.base import DocumentAssembler, Finisher
 from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, DocumentNormalizer
+from pyspark.ml.clustering import LDA
 # , SymmetricDeleteModel, ContextSpellCheckerApproach, NormalizerModel, ContextSpellCheckerModel, NorvigSweetingModel, AlbertEmbeddings, DocumentNormalizer
 
 def NLPPipe(fieldname):
@@ -224,6 +225,9 @@ def NLPPipe(fieldname):
 lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
 
 
+# Topic modeling
+lda = LDA(k=10, maxIter=10)
+
 # Build up the pipeline
 cols = featureList
 pipelineObj = []
@@ -235,7 +239,7 @@ for field in [ "reviewText", "summary"]: #, "summary"
   
 assembler = VectorAssembler(inputCols=cols, outputCol="features")
 
-pipelineStages = pipelineObj + [assembler, lr]
+pipelineStages = pipelineObj + [assembler, lda]
 
 # COMMAND ----------
 
@@ -249,6 +253,11 @@ pipelineFit.save(f"file:///databricks/driver/models/{now}")
 comment = [f"Pipeline name: {now}"]
 comment +=  ["Pipeline object: <insert here>"]
 comment +=  ["Pipeline summary: <insert here>\n\n\n"]
+
+# COMMAND ----------
+
+ldaPipeline = pipelineFit.stages[-1]
+ldaPipeline
 
 # COMMAND ----------
 

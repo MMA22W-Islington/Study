@@ -197,10 +197,6 @@ def NLPPipe(fieldname):
   # IDF
 #   idf = IDF(inputCol=f"rawFeatures", outputCol=f"idfFeatures", minDocFreq=5)
 
-
-#   cleaned_token_size = SQLTransformer(
-#       statement = f"SELECT * , size({fieldname}_filtered) AS {fieldname}_tokenSize FROM __THIS__"
-#   )
   cleaned_token_size = SQLTransformer(
       statement = f"SELECT * , size({fieldname}_token_features) AS {fieldname}_tokenSize FROM __THIS__"
   )
@@ -327,3 +323,8 @@ comment += ["-------------------------------------------------------------------
 # generate a template to put it on top
 for line in comment:
   print(line)
+
+# COMMAND ----------
+
+# !touch yolo.txt
+!ls
