@@ -218,16 +218,6 @@ def NLPPipe(fieldname):
     countVectors,
     cleaned_token_size], [f"{fieldname}_rawFeatures", f"{fieldname}_tokenSize"]
 
-
-# More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
-
-# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
-
-
-# Topic modeling
-lda = LDA(k=10, maxIter=10)
-
 # Build up the pipeline
 cols = featureList
 pipelineObj = []
@@ -239,7 +229,7 @@ for field in [ "reviewText", "summary"]: #, "summary"
   
 assembler = VectorAssembler(inputCols=cols, outputCol="features")
 
-pipelineStages = pipelineObj + [assembler, lda]
+pipelineStages = pipelineObj + [assembler]
 
 # COMMAND ----------
 
@@ -247,98 +237,22 @@ pipelineStages = pipelineObj + [assembler, lda]
 # Fit the pipeline to training documents.
 pipeline = Pipeline(stages=pipelineStages)
 pipelineFit = pipeline.fit(trainingData)
-import datetime
-now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-pipelineFit.save(f"file:///databricks/driver/models/{now}")
-comment = [f"Pipeline name: {now}"]
-comment +=  ["Pipeline object: <insert here>"]
-comment +=  ["Pipeline summary: <insert here>\n\n\n"]
+PipelineTransformed = pipelineFit.transform(trainingData)
 
-# COMMAND ----------
+# Topic modeling
+lda = LDA(k=10, maxIter=10)
+ldaModel = lda.fit(PipelineTransformed)
 
-ldaPipeline = pipelineFit.stages[-1]
-ldaPipeline
+transformed = ldaModel.transform(PipelineTransformed).select("topicDistribution")
+transformed.show(truncate=False)  
 
-# COMMAND ----------
+ll = ldaModel.logLikelihood(PipelineTransformed)  
+lp = ldaModel.logPerplexity(PipelineTransformed) 
 
-#ldaPipeline.describeTopics().show()
-ldaPipeline.transform(trainingData).show()
-#ldaPipeline.logLikelihood(pipelineFit)
-
-# COMMAND ----------
-
-# DBTITLE 1,Show Training Metrics
-# Extract the summary from the returned LogisticRegressionModel instance trained
-# in the earlier example
-trainingSummary = pipelineFit.stages[-1].summary
-
-comment += ["Training Accuracy:  " + str(trainingSummary.accuracy)]
-comment += ["Training Precision: " + str(trainingSummary.precisionByLabel)]
-comment += ["Training Recall:    " + str(trainingSummary.recallByLabel)]
-comment += ["Training FMeasure:  " + str(trainingSummary.fMeasureByLabel())]
-comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
-comment += ["\n"]
-
-# move to next cell to check
-
-# trainingSummary.roc.show()
-
-# Obtain the objective per iteration
-# objectiveHistory = trainingSummary.objectiveHistory
-# for objective in objectiveHistory:
-#     print(objective)
-
-# COMMAND ----------
-
-# DBTITLE 1,Transform Testing Data
-predictions = pipelineFit.transform(testingData)
-
-# COMMAND ----------
-
-# DBTITLE 1,Use Model to Predict Test Data; Evaluate
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
-
-acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
-pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
-rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
-pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
-auc_evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
-
-comment += ["Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions))]
-comment += ["Test Precision      = %g" % (pre_evaluator.evaluate(predictions))]
-comment += ["Test Recall         = %g" % (rec_evaluator.evaluate(predictions))]
-comment += ["Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions))]
-comment += ["Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions))]
-
-# COMMAND ----------
-
-# DBTITLE 1,Make Predictions on Kaggle Test Data
-# Load in the tables
-test_df = spark.sql("select * from default.reviews_holdout")
-print((test_df.count(), len(test_df.columns)))
-
-# COMMAND ----------
-
-test_df, _ = featureEngineering(test_df)
-submit_predictions = pipelineFit.transform(test_df)
-
-# COMMAND ----------
-
-from pyspark.sql.functions import udf
-from pyspark.sql.types import FloatType
-
-lastElement=udf(lambda v:float(v[1]),FloatType())
-submit_predictions.select('reviewID', lastElement('probability').alias("label")).display()
-
-# COMMAND ----------
-
-!ls models
-!mkdir answers
-!ls
-
-# COMMAND ----------
-
-comment += ["---------------------------------------------------------------------------"]
-# generate a template to put it on top
-for line in comment:
-  print(line)
+topicIndices = ldaModel.describeTopics(maxTermsPerTopic = wordNumbers)  
+vocab_broadcast = sc.broadcast(vocabArray)  
+udf_to_word = udf(to_word, ArrayType(StringType()))  
+  
+topics = topicIndices.withColumn("words", udf_to_word(topicIndices.termIndices))  
+topics.show(truncate=False)  
+exit()
