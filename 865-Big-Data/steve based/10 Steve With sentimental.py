@@ -234,13 +234,17 @@ def NLPPipe(fieldname):
     multiClassifierDl,
     sentimentalFinisher,
     countVectorsSentimental
-  ], [f"{fieldname}_rawFeatures", f"{fieldname}_tokenSize", f"{fieldname}_sentimental_rawFeatures"]
+  ], [
+    f"{fieldname}_rawFeatures", 
+    f"{fieldname}_tokenSize", 
+    f"{fieldname}_sentimental_rawFeatures"
+  ]
 
 
 # More classification docs: https://spark.apache.org/docs/latest/ml-classification-regression.html
 
-# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
-lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
+lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0, weightCol="classWeightCol")
+# lr = LogisticRegression(maxIter=20, regParam=0.3, elasticNetParam=0)  # garbage
 
 
 # Topic modeling
@@ -262,12 +266,12 @@ pipelineStages = pipelineObj + [assembler, lr]
 # COMMAND ----------
 
 # DBTITLE 1,Transform Training Data
-# Fit the pipeline to training documents.
+dbfs/joe/# Fit the pipeline to training documents.
 pipeline = Pipeline(stages=pipelineStages)
 pipelineFit = pipeline.fit(trainingData)
 import datetime
 now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-pipelineFit.save(f"file:///databricks/driver/models/{now}")
+pipelineFit.save(f"file:///dbfs/joe/{now}")
 comment = [f"Pipeline name: {now}"]
 comment +=  ["Pipeline object: <insert here>"]
 comment +=  ["Pipeline summary: <insert here>\n\n\n"]
@@ -344,7 +348,11 @@ from pyspark.sql.functions import udf
 from pyspark.sql.types import FloatType
 
 lastElement=udf(lambda v:float(v[1]),FloatType())
-submit_predictions.select('reviewID', lastElement('probability').alias("label")).display()
+submission = submit_predictions.select('reviewID', lastElement('probability').alias("label"))
+
+# COMMAND ----------
+
+submission.write.csv(f"file:///dbfs/joe/{now}.csv")
 
 # COMMAND ----------
 
