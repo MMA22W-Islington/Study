@@ -35,7 +35,7 @@ from pyspark.sql.functions import col, lit, when, split, size
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, IDF, VectorAssembler, SQLTransformer
 from sparknlp.annotator import ContextSpellCheckerModel, LemmatizerModel
-from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.classification import LogisticRegression, GBTClassifier
 from sparknlp.base import DocumentAssembler, Finisher
 from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, DocumentNormalizer, UniversalSentenceEncoder, MultiClassifierDLModel
 from pyspark.ml.clustering import LDA
@@ -328,7 +328,8 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClass
 
 # other Regression?
 # lr = LogisticRegression(maxIter=20, weightCol="classWeightCol")
-lr = LogisticRegression(maxIter=20)  # garbage
+# lr = LogisticRegression(maxIter=20)  # garbage
+gbt = GBTClassifier(maxIter=20)
 
 paramGrid = ParamGridBuilder()\
     .addGrid(lr.regParam, [0.1, 0.01, 0.3]) \
@@ -338,7 +339,7 @@ paramGrid = ParamGridBuilder()\
 
 # In this case the estimator is simply the linear regression.
 # A TrainValidationSplit requires an Estimator, a set of Estimator ParamMaps, and an Evaluator.
-tvs = TrainValidationSplit(estimator=lr,
+tvs = TrainValidationSplit(estimator=gbt,
                            estimatorParamMaps=paramGrid,
                            evaluator=BinaryClassificationEvaluator(),
                            # 80% of the data will be used for training, 20% for validation.
