@@ -1,4 +1,8 @@
 # Databricks notebook source
+
+
+# COMMAND ----------
+
 """
 TODO:
 1. proper missing value handle
