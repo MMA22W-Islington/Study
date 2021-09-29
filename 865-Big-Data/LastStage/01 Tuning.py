@@ -30,17 +30,17 @@ For Imbalance
 # COMMAND ----------
 
 # DBTITLE 1,[Don't Touch]Load Data
-# from pyspark.sql.functions import to_date, year, month, dayofmonth, dayofyear, weekofyear
-# from pyspark.sql.functions import col, lit, when, split, size
-# from pyspark.ml import Pipeline
-# from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, IDF, VectorAssembler, SQLTransformer
-# from sparknlp.annotator import ContextSpellCheckerModel, LemmatizerModel
-# from pyspark.ml.classification import LogisticRegression, GBTClassifier
-# from sparknlp.base import DocumentAssembler, Finisher
-# from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, DocumentNormalizer, UniversalSentenceEncoder, MultiClassifierDLModel
-# from pyspark.ml.clustering import LDA
-# from pyspark.sql.functions import to_date, year, month, dayofmonth, dayofyear, weekofyear
-# from pyspark.sql.functions import col, lit, when, split, size
+from pyspark.sql.functions import to_date, year, month, dayofmonth, dayofyear, weekofyear
+from pyspark.sql.functions import col, lit, when, split, size
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer, IDF, VectorAssembler, SQLTransformer
+from sparknlp.annotator import ContextSpellCheckerModel, LemmatizerModel
+from pyspark.ml.classification import LogisticRegression, GBTClassifier
+from sparknlp.base import DocumentAssembler, Finisher
+from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, LemmatizerModel, DocumentNormalizer, UniversalSentenceEncoder, MultiClassifierDLModel
+from pyspark.ml.clustering import LDA
+from pyspark.sql.functions import to_date, year, month, dayofmonth, dayofyear, weekofyear
+from pyspark.sql.functions import col, lit, when, split, size
 
 # Load in one of the tables
 df1 = spark.sql("select * from default.video_games_5")
