@@ -59,7 +59,7 @@ def resample(base_features, ratio, class_field, base_class):
     return sampled.union(pos)
 
 # Resample
-df = resample(df,0.5,'label',1)
+df = resample(df,1,'label',1)
 print((df.count(), len(df.columns)))
 
 # COMMAND ----------
@@ -270,9 +270,8 @@ def NLPPipe(fieldname):
 # DBTITLE 1,Topic Modeling
 # for interpertation check the bottom cell named TOPIC Lib
 
-
 # Topic modeling
-lda = LDA(k=10, maxIter=10)
+# lda = LDA(k=10, maxIter=10)
 
 # COMMAND ----------
 
@@ -329,7 +328,7 @@ testingData = preprocess.transform(testingData)
 # COMMAND ----------
 
 # DBTITLE 1,LDA and Regression
-from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit
+from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit,CrossValidator
 from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
 
 # other Regression?
@@ -337,29 +336,43 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClass
 # lr = LogisticRegression(maxIter=20)  # garbage
 gbt = GBTClassifier(maxIter=20)
 
-paramGrid = ParamGridBuilder()\
-    .addGrid(lr.regParam, [0.1, 0.01, 0.3]) \
-    .addGrid(lr.fitIntercept, [False, True])\
-    .addGrid(lr.elasticNetParam, [0.0, 0.3, 0.5, 1.0])\
-    .build()
+# paramGrid = ParamGridBuilder().build()
+
+paramGrid = (ParamGridBuilder()
+             .addGrid(gbt.maxDepth, [2, 5, 10])
+             .addGrid(gbt.maxBins, [10, 20, 40])
+             .addGrid(gbt.maxIter, [5, 10, 20])
+             .build())
+
+
+# Create 5-fold CrossValidator
+gbcv = CrossValidator(estimator = gbt,
+                      estimatorParamMaps = paramGrid,
+                      evaluator = BinaryClassificationEvaluator(),
+                      numFolds = 5,
+                      seed = 530,
+                      parallelism = 10)
 
 # In this case the estimator is simply the linear regression.
 # A TrainValidationSplit requires an Estimator, a set of Estimator ParamMaps, and an Evaluator.
-tvs = TrainValidationSplit(estimator=gbt,
-                           estimatorParamMaps=paramGrid,
-                           evaluator=BinaryClassificationEvaluator(),
-                           # 80% of the data will be used for training, 20% for validation.
-                           trainRatio=0.9, 
-                           seed=42,
-                            parallelism = 1)
+# tvs = TrainValidationSplit(estimator=gbt,
+#                            estimatorParamMaps=paramGrid,
+#                            evaluator=BinaryClassificationEvaluator(),
+#                            # 80% of the data will be used for training, 20% for validation.
+#                            trainRatio=0.9, 
+#                            seed=42,
+#                            parallelism = 10)
 
 
 # COMMAND ----------
 
 # DBTITLE 1,[Don't Touch]Transform Training Data
 # Fit the pipeline to training documents.
-pipelineFit = tvs.fit(trainingData)
+# pipelineFit = tvs.fit(trainingData)
+pipelineFit = gbcv.fit(trainingData)
+
 import datetime
+
 now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 pipelineFit.save(f"file:///dbfs/joe/{now}_model")
 comment = [f"Pipeline name: {now}"]
@@ -370,14 +383,14 @@ comment +=  ["Pipeline summary: <insert here>\n\n\n"]
 # DBTITLE 1,Show Training Metrics
 # Extract the summary from the returned LogisticRegressionModel instance trained
 # in the earlier example
-trainingSummary = pipelineFit.summary
+# trainingSummary = pipelineFit.summary
 
-comment += ["Training Accuracy:  " + str(trainingSummary.accuracy)]
-comment += ["Training Precision: " + str(trainingSummary.precisionByLabel)]
-comment += ["Training Recall:    " + str(trainingSummary.recallByLabel)]
-comment += ["Training FMeasure:  " + str(trainingSummary.fMeasureByLabel())]
-comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
-comment += ["\n"]
+# comment += ["Training Accuracy:  " + str(trainingSummary.accuracy)]
+# comment += ["Training Precision: " + str(trainingSummary.precisionByLabel)]
+# comment += ["Training Recall:    " + str(trainingSummary.recallByLabel)]
+# comment += ["Training FMeasure:  " + str(trainingSummary.fMeasureByLabel())]
+# comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
+# comment += ["\n"]
 
 # move to next cell to check
 
@@ -397,17 +410,16 @@ predictions = pipelineFit.transform(testingData)
 
 # DBTITLE 1,Use Model to Predict Test Data; Evaluate
 
-
-acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
-pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
-rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
-pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
+# acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
+# pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
+# rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
+# pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
 auc_evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
 
-comment += ["Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions))]
-comment += ["Test Precision      = %g" % (pre_evaluator.evaluate(predictions))]
-comment += ["Test Recall         = %g" % (rec_evaluator.evaluate(predictions))]
-comment += ["Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions))]
+# comment += ["Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions))]
+# comment += ["Test Precision      = %g" % (pre_evaluator.evaluate(predictions))]
+# comment += ["Test Recall         = %g" % (rec_evaluator.evaluate(predictions))]
+# comment += ["Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions))]
 comment += ["Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions))]
 
 # COMMAND ----------
@@ -434,6 +446,7 @@ submission = submit_predictions.select('reviewID', lastElement('probability').al
 # COMMAND ----------
 
 submission.write.csv(f"file:///dbfs/joe/{now}_sub.csv", header=True)
+now
 
 # COMMAND ----------
 
