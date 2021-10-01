@@ -15,14 +15,23 @@ paramGrid = (ParamGridBuilder()
              .addGrid(gbt.maxBins, [10, 20, 40])
              .addGrid(gbt.maxIter, [5, 10, 20])
              .build())
-gbcv = CrossValidator(estimator = gbt,
-                      estimatorParamMaps = paramGrid,
-                      evaluator = BinaryClassificationEvaluator(),
-                      numFolds = 5,
-                      seed = 530,
-                      parallelism = 10)
+# gbcv = CrossValidator(estimator = gbt,
+#                       estimatorParamMaps = paramGrid,
+#                       evaluator = BinaryClassificationEvaluator(),
+#                       numFolds = 2,
+#                       seed = 530,
+#                       parallelism = 10)
 
-pipelineFit = gbcv.fit(trainingData)
+tvs = TrainValidationSplit(estimator=gbt,
+                           estimatorParamMaps=paramGrid,
+                           evaluator=BinaryClassificationEvaluator(),
+                           # 90% of the data will be used for training, 20% for validation.
+                           trainRatio=0.9, 
+                           seed=530,
+                           parallelism = 5)
+
+# pipelineFit = gbcv.fit(trainingData)
+pipelineFit = tvs.fit(trainingData)
 now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 pipelineFit.save(f"file:///dbfs/joe/{now}_model")
 comment = [f"Pipeline name: {now}"]
@@ -30,14 +39,14 @@ comment = [f"Pipeline name: {now}"]
 #TODO: NEED TO GET CV
 # Extract the summary from the returned LogisticRegressionModel instance trained
 # in the earlier example
-# trainingSummary = pipelineFit.summary
+trainingSummary = pipelineFit.summary
 
 # comment += ["Training Accuracy:  " + str(trainingSummary.accuracy)]
 # comment += ["Training Precision: " + str(trainingSummary.precisionByLabel)]
 # comment += ["Training Recall:    " + str(trainingSummary.recallByLabel)]
 # comment += ["Training FMeasure:  " + str(trainingSummary.fMeasureByLabel())]
-# comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
-# comment += ["\n"]
+comment += ["Training AUC:       " + str(trainingSummary.areaUnderROC)]
+comment += ["\n"]
 
 # move to next cell to check
 

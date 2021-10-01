@@ -19,6 +19,8 @@ df3 = spark.sql("select * from default.home_and_kitchen_5_small")
 df = df1.union(df2).union(df3)
 # print((df.count(), len(df.columns)))
 
+df = df.sample(False, 0.30, seed=530)
+
 def resample(base_features, ratio, class_field, base_class):
     pos = base_features.filter(col(class_field)==base_class)
     neg = base_features.filter(col(class_field)!=base_class)
@@ -117,7 +119,7 @@ print((df.count(), len(df.columns)))
 
 
 # Split
-(trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
+(trainingData, testingData) = randomSplit([0.8, 0.2], seed = 47)
 trainingData.columns
 
 # COMMAND ----------
@@ -155,7 +157,6 @@ def NLPPipe(fieldname):
 #   spellChecker = ContextSpellCheckerModel.pretrained() \
 #       .setInputCols(f"{fieldname}_token") \
 #       .setOutputCol(f"{fieldname}_corrected")
-
 
 #       .setInputCols([f"{fieldname}_corrected"]) \
   lemmatizer = LemmatizerModel.pretrained() \
