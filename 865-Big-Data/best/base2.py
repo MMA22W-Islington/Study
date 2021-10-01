@@ -22,30 +22,50 @@ df = df1.union(df2).union(df3)
 # COMMAND ----------
 
 from sparknlp.base import DocumentAssembler
-from sparknlp.annotator import LanguageDetectorDL
+from sparknlp.annotator import LanguageDetectorDL, DocumentNormalizer
+from pyspark.ml.feature import SQLTransformer
+from pyspark.sql.functions import isnan, when, count, col
 
 lang_documentAssembler = DocumentAssembler() \
     .setInputCol("reviewText") \
     .setOutputCol("document")
-languageDetector = LanguageDetectorDL.pretrained() \
+
+lang_documentNormalizer = DocumentNormalizer() \
     .setInputCols("document") \
+    .setOutputCol("removedHTML") \
+    .setAction("clean") \
+    .setPatterns(["<[^>]*>"]) \
+    .setReplacement(" ") \
+    .setPolicy("pretty_all") \
+    .setLowercase(True) \
+    .setEncoding("UTF-8")
+languageDetector = LanguageDetectorDL.pretrained() \
+    .setInputCols("removedHTML") \
     .setOutputCol("language")
+lang_isEng = SQLTransformer(
+    statement = 'SELECT *, language.result AS res , size(language.result) AS langSize \
+                 FROM __THIS__'
+)
 lang_pipeline = Pipeline() \
     .setStages([
       lang_documentAssembler,
-      languageDetector
+      lang_documentNormalizer,
+      languageDetector,
+      lang_isEng
     ])
 
-result = lang_pipeline.fit(df).transform(df)
-result.select("language.result").show(truncate=False)
+df = lang_pipeline.fit(df).transform(df)
 
-# COMMAND ----------
+df = df.withColumn("isEng", when(df.langSize > 1, False)
+                                    .when(df.res[0] == 'en', True)
+                                    .otherwise(False))
+df = df.filter(df.isEng)
 
 
-result.select("language.result").select(approx_count_distinct("result")).collect().show(truncate=False)
-# from pyspark.sql.functions import approx_count_distinct,collect_list
-# print("language: " + \
-#       str(df.select(approx_count_distinct("language.result")).collect()[0][0]))
+print("filter is English:", df.count() != 3487331)
+# original 3487331
+# bad: 53149
+# should be 3434182
 
 # COMMAND ----------
 
