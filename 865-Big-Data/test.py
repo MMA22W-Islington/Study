@@ -20,7 +20,6 @@ df = df1.union(df2).union(df3)
 # print((df.count(), len(df.columns)))
 
 df = df.sample(False, 0.30, seed=530)
-df = df.cache()
 
 def resample(base_features, ratio, class_field, base_class):
     pos = base_features.filter(col(class_field)==base_class)
@@ -120,7 +119,7 @@ print((df.count(), len(df.columns)))
 
 
 # Split
-(trainingData, testingData) = df.randomSplit([0.8, 0.2], seed = 47)
+(trainingData, testingData) = randomSplit([0.8, 0.2], seed = 47)
 trainingData.columns
 
 # COMMAND ----------
@@ -230,10 +229,10 @@ def NLPPipe(fieldname):
     countVectors,
     idf,
     cleaned_token_size,
-#     useEmbeddings,
-#     multiClassifierDl,
-#     sentimentalFinisher,
-#     countVectorsSentimental
+    useEmbeddings,
+    multiClassifierDl,
+    sentimentalFinisher,
+    countVectorsSentimental
   ]
 
 
@@ -245,11 +244,11 @@ assembler = VectorAssembler(inputCols=[
 #   "summary_rawFeatures", 
   "summary_idfFeatures", 
   "summary_tokenSize", 
-#   "summary_sentimental_rawFeatures",
+  "summary_sentimental_rawFeatures",
 #   "reviewText_rawFeatures",  # no idf
   "reviewText_idfFeatures", 
   "reviewText_tokenSize", 
-#   "reviewText_sentimental_rawFeatures",
+  "reviewText_sentimental_rawFeatures",
 #   'asin', 
 #   'reviewID',
 #   'reviewTime',

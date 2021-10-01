@@ -9,12 +9,22 @@ from pyspark.ml.tuning import ParamGridBuilder, TrainValidationSplit,CrossValida
 from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
 import datetime
 
-gbt = GBTClassifier(maxIter=20)
-paramGrid = (ParamGridBuilder()
-             .addGrid(gbt.maxDepth, [2, 5, 10])
-             .addGrid(gbt.maxBins, [10, 20, 40])
-             .addGrid(gbt.maxIter, [5, 10, 20])
-             .build())
+lr = LogisticRegression(maxIter=20)  
+paramGrid = ParamGridBuilder()\
+    .addGrid(lr.regParam, [0.1, 0.01, 0.3]) \
+    .addGrid(lr.fitIntercept, [False, True])\
+    .addGrid(lr.elasticNetParam, [0.0, 0.3, 0.5, 1.0])\
+    .build()
+
+# gbt
+# gbt = GBTClassifier(maxIter=20)
+# paramGrid = (ParamGridBuilder()
+#              .addGrid(gbt.maxDepth, [2, 5, 10])
+#              .addGrid(gbt.maxBins, [10, 20, 40])
+#              .addGrid(gbt.maxIter, [5, 10, 20])
+#              .build())
+
+# cross validation
 # gbcv = CrossValidator(estimator = gbt,
 #                       estimatorParamMaps = paramGrid,
 #                       evaluator = BinaryClassificationEvaluator(),
@@ -22,13 +32,16 @@ paramGrid = (ParamGridBuilder()
 #                       seed = 530,
 #                       parallelism = 10)
 
-tvs = TrainValidationSplit(estimator=gbt,
+# light gbm
+# boosting
+
+
+tvs = TrainValidationSplit(estimator=lr,
                            estimatorParamMaps=paramGrid,
                            evaluator=BinaryClassificationEvaluator(),
                            # 90% of the data will be used for training, 20% for validation.
                            trainRatio=0.9, 
-                           seed=530,
-                           parallelism = 5)
+                           seed=530)
 
 # pipelineFit = gbcv.fit(trainingData)
 pipelineFit = tvs.fit(trainingData)

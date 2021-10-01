@@ -19,6 +19,37 @@ df3 = spark.sql("select * from default.home_and_kitchen_5_small")
 df = df1.union(df2).union(df3)
 # print((df.count(), len(df.columns)))
 
+# COMMAND ----------
+
+from sparknlp.base import DocumentAssembler
+from sparknlp.annotator import LanguageDetectorDL
+
+lang_documentAssembler = DocumentAssembler() \
+    .setInputCol("reviewText") \
+    .setOutputCol("document")
+languageDetector = LanguageDetectorDL.pretrained() \
+    .setInputCols("document") \
+    .setOutputCol("language")
+lang_pipeline = Pipeline() \
+    .setStages([
+      lang_documentAssembler,
+      languageDetector
+    ])
+
+result = lang_pipeline.fit(df).transform(df)
+result.select("language.result").show(truncate=False)
+
+# COMMAND ----------
+
+
+result.select("language.result").select(approx_count_distinct("result")).collect().show(truncate=False)
+# from pyspark.sql.functions import approx_count_distinct,collect_list
+# print("language: " + \
+#       str(df.select(approx_count_distinct("language.result")).collect()[0][0]))
+
+# COMMAND ----------
+
+# DBTITLE 1,split
 df = df.sample(False, 0.30, seed=530)
 df = df.cache()
 
@@ -230,10 +261,10 @@ def NLPPipe(fieldname):
     countVectors,
     idf,
     cleaned_token_size,
-#     useEmbeddings,
-#     multiClassifierDl,
-#     sentimentalFinisher,
-#     countVectorsSentimental
+    useEmbeddings,
+    multiClassifierDl,
+    sentimentalFinisher,
+    countVectorsSentimental
   ]
 
 
@@ -245,11 +276,11 @@ assembler = VectorAssembler(inputCols=[
 #   "summary_rawFeatures", 
   "summary_idfFeatures", 
   "summary_tokenSize", 
-#   "summary_sentimental_rawFeatures",
+  "summary_sentimental_rawFeatures",
 #   "reviewText_rawFeatures",  # no idf
   "reviewText_idfFeatures", 
   "reviewText_tokenSize", 
-#   "reviewText_sentimental_rawFeatures",
+  "reviewText_sentimental_rawFeatures",
 #   'asin', 
 #   'reviewID',
 #   'reviewTime',
