@@ -597,3 +597,92 @@ AssertionError
                            validation_fraction=0.1, verbose=0,
                            warm_start=False)
 2021-10-01 09:12:51,594:INFO:compare_models() succesfully completed......................................
+2021-10-01 19:19:28,344:INFO:Initializing predict_model()
+2021-10-01 19:19:28,348:INFO:predict_model(estimator=GradientBoostingClassifier(ccp_alpha=0.0, criterion='friedman_mse', init=None,
+                           learning_rate=0.1, loss='deviance', max_depth=3,
+                           max_features=None, max_leaf_nodes=None,
+                           min_impurity_decrease=0.0, min_impurity_split=None,
+                           min_samples_leaf=1, min_samples_split=2,
+                           min_weight_fraction_leaf=0.0, n_estimators=100,
+                           n_iter_no_change=None, presort='deprecated',
+                           random_state=123, subsample=1.0, tol=0.0001,
+                           validation_fraction=0.1, verbose=0,
+                           warm_start=False), probability_threshold=None, encoded_labels=False, raw_score=False, round=4, verbose=True, ml_usecase=MLUsecase.CLASSIFICATION, display=None)
+2021-10-01 19:19:28,349:INFO:Checking exceptions
+2021-10-01 19:19:28,349:INFO:Preloading libraries
+2021-10-01 19:19:28,354:INFO:Preparing display monitor
+2021-10-01 19:20:21,941:INFO:Initializing finalize_model()
+2021-10-01 19:20:21,941:INFO:finalize_model(estimator=GradientBoostingClassifier(ccp_alpha=0.0, criterion='friedman_mse', init=None,
+                           learning_rate=0.1, loss='deviance', max_depth=3,
+                           max_features=None, max_leaf_nodes=None,
+                           min_impurity_decrease=0.0, min_impurity_split=None,
+                           min_samples_leaf=1, min_samples_split=2,
+                           min_weight_fraction_leaf=0.0, n_estimators=100,
+                           n_iter_no_change=None, presort='deprecated',
+                           random_state=123, subsample=1.0, tol=0.0001,
+                           validation_fraction=0.1, verbose=0,
+                           warm_start=False), fit_kwargs=None, groups=None, model_only=True, display=None)
+2021-10-01 19:20:21,941:INFO:Finalizing GradientBoostingClassifier(ccp_alpha=0.0, criterion='friedman_mse', init=None,
+                           learning_rate=0.1, loss='deviance', max_depth=3,
+                           max_features=None, max_leaf_nodes=None,
+                           min_impurity_decrease=0.0, min_impurity_split=None,
+                           min_samples_leaf=1, min_samples_split=2,
+                           min_weight_fraction_leaf=0.0, n_estimators=100,
+                           n_iter_no_change=None, presort='deprecated',
+                           random_state=123, subsample=1.0, tol=0.0001,
+                           validation_fraction=0.1, verbose=0,
+                           warm_start=False)
+2021-10-01 19:20:21,941:INFO:Initializing create_model()
+2021-10-01 19:20:21,941:INFO:create_model(estimator=GradientBoostingClassifier(ccp_alpha=0.0, criterion='friedman_mse', init=None,
+                           learning_rate=0.1, loss='deviance', max_depth=3,
+                           max_features=None, max_leaf_nodes=None,
+                           min_impurity_decrease=0.0, min_impurity_split=None,
+                           min_samples_leaf=1, min_samples_split=2,
+                           min_weight_fraction_leaf=0.0, n_estimators=100,
+                           n_iter_no_change=None, presort='deprecated',
+                           random_state=123, subsample=1.0, tol=0.0001,
+                           validation_fraction=0.1, verbose=0,
+                           warm_start=False), fold=None, round=4, cross_validation=True, predict=True, fit_kwargs={}, groups=None, refit=True, verbose=False, system=False, metrics=None, display=None, kwargs={})
+2021-10-01 19:20:21,941:INFO:Checking exceptions
+2021-10-01 19:20:21,941:INFO:Importing libraries
+2021-10-01 19:20:21,941:INFO:Copying training dataset
+2021-10-01 19:20:21,964:INFO:Defining folds
+2021-10-01 19:20:21,965:INFO:Declaring metric variables
+2021-10-01 19:20:21,965:INFO:Importing untrained model
+2021-10-01 19:20:21,965:INFO:Declaring custom model
+2021-10-01 19:20:21,966:INFO:Gradient Boosting Classifier Imported succesfully
+2021-10-01 19:20:21,966:INFO:Starting cross validation
+2021-10-01 19:20:21,967:INFO:Cross validating with StratifiedKFold(n_splits=10, random_state=None, shuffle=False), n_jobs=-1
+2021-10-01 19:21:14,962:INFO:Calculating mean and std
+2021-10-01 19:21:14,964:INFO:Creating metrics dataframe
+2021-10-01 19:21:14,981:INFO:Finalizing model
+2021-10-01 19:21:23,601:INFO:Uploading results into container
+2021-10-01 19:21:23,601:INFO:Uploading model into container now
+2021-10-01 19:21:23,602:INFO:create_model_container: 17
+2021-10-01 19:21:23,603:INFO:master_model_container: 17
+2021-10-01 19:21:23,603:INFO:display_container: 4
+2021-10-01 19:21:23,604:INFO:GradientBoostingClassifier(ccp_alpha=0.0, criterion='friedman_mse', init=None,
+                           learning_rate=0.1, loss='deviance', max_depth=3,
+                           max_features=None, max_leaf_nodes=None,
+                           min_impurity_decrease=0.0, min_impurity_split=None,
+                           min_samples_leaf=1, min_samples_split=2,
+                           min_weight_fraction_leaf=0.0, n_estimators=100,
+                           n_iter_no_change=None, presort='deprecated',
+                           random_state=123, subsample=1.0, tol=0.0001,
+                           validation_fraction=0.1, verbose=0,
+                           warm_start=False)
+2021-10-01 19:21:23,605:INFO:create_model() succesfully completed......................................
+2021-10-01 19:21:23,691:INFO:create_model_container: 17
+2021-10-01 19:21:23,691:INFO:master_model_container: 17
+2021-10-01 19:21:23,691:INFO:display_container: 3
+2021-10-01 19:21:23,691:INFO:GradientBoostingClassifier(ccp_alpha=0.0, criterion='friedman_mse', init=None,
+                           learning_rate=0.1, loss='deviance', max_depth=3,
+                           max_features=None, max_leaf_nodes=None,
+                           min_impurity_decrease=0.0, min_impurity_split=None,
+                           min_samples_leaf=1, min_samples_split=2,
+                           min_weight_fraction_leaf=0.0, n_estimators=100,
+                           n_iter_no_change=None, presort='deprecated',
+                           random_state=123, subsample=1.0, tol=0.0001,
+                           validation_fraction=0.1, verbose=0,
+                           warm_start=False)
+2021-10-01 19:21:23,691:INFO:finalize_model() succesfully completed......................................
