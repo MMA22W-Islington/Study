@@ -167,4 +167,5 @@ predictions = lrModel.transform(test_df_Transform)
 
 # COMMAND ----------
 
-display(predictions.select('reviewID', 'prediction'))
+predictions.show()
+# display(predictions.select('reviewID', 'prediction'))

@@ -8,7 +8,7 @@ df3 = spark.sql("select * from default.books_5_small")
 #data = df1.union(df2)
 data = df1.union(df2).union(df3)
 
-data = data.sample(False, 0.01, seed=0)
+# data = data.sample(False, 0.3, seed=0)
 
 data = data.cache()
 
@@ -90,6 +90,18 @@ nlp_pipeline = Pipeline(
 
 # COMMAND ----------
 
+# pl = Pipeline(
+#     stages=[document_assembler, 
+#             tokenizer,
+#             normalizer,
+#             stopwords_cleaner, 
+#             stemmer, 
+#             finisher])
+# eda = pl.fit(trainingData).transform(trainingData)
+# eda.selectExpr("token_features").show(10, False)
+
+# COMMAND ----------
+
 pipeline_model = nlp_pipeline.fit(trainingData)
 
 # COMMAND ----------
@@ -99,25 +111,56 @@ display(predictions)
 
 # COMMAND ----------
 
-predictions.groupBy("label").count().show()
+# predictions.groupBy("label").count().show()
 predictions.groupBy("prediction").count().show()
 
 # COMMAND ----------
 
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
+# from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
 
-acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
-pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
-rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
-pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
-auc_evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
+# acc_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
+# pre_evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
+# rec_evaluator = MulticlassClassificationEvaluator(metricName="weightedRecall")
+# pr_evaluator  = BinaryClassificationEvaluator(metricName="areaUnderPR")
+# auc_evaluator = BinaryClassificationEvaluator(metricName="areaUnderROC")
 
-print("Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions)))
-print("Test Precision      = %g" % (pre_evaluator.evaluate(predictions)))
-print("Test Recall         = %g" % (rec_evaluator.evaluate(predictions)))
-print("Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions)))
-print("Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions)))
+# print("Test Accuracy       = %g" % (acc_evaluator.evaluate(predictions)))
+# print("Test Precision      = %g" % (pre_evaluator.evaluate(predictions)))
+# print("Test Recall         = %g" % (rec_evaluator.evaluate(predictions)))
+# print("Test areaUnderPR    = %g" % (pr_evaluator.evaluate(predictions)))
+# print("Test areaUnderROC   = %g" % (auc_evaluator.evaluate(predictions)))
 
 # COMMAND ----------
 
+pipeline_model.save("file:///databricks/driver/Spark_NLP_Example_all")
 
+# COMMAND ----------
+
+test = spark.sql("select * from default.reviews_holdout")
+prediction = pipeline_model.transform(test)
+
+# COMMAND ----------
+
+# prediction.select('reviewID', 'prediction').write.format("csv").save(f"file:///databricks/driver/submission_nlp_example.csv")
+
+# COMMAND ----------
+
+prediction.show(5)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import explode
+
+display(prediction.select('reviewID','prediction'))
+
+# COMMAND ----------
+
+from pyspark.sql.functions import udf
+from pyspark.sql.types import FloatType
+
+lastElement=udf(lambda v:float(v[1]),FloatType())
+prediction.select('reviewID', lastElement('probability').alias("label")).display()
+
+# COMMAND ----------
+
+transformed_data

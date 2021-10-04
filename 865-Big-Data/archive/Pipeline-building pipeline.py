@@ -1,7 +1,11 @@
 # Databricks notebook source
+
+
+# COMMAND ----------
+
 # TODO:  multi thread
 # TODO: save model 
-# TODO: Train shuffle, strafied
+# TODO: Train shuffle, strafied (https://spark.apache.org/docs/latest/ml-tuning.html)
 # TODO: RF Ensemble
 
 from pyspark.ml import Pipeline
@@ -10,11 +14,18 @@ from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
 from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
+from sparknlp.base import DocumentAssembler, Finisher
+from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Stemmer
+
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import CountVectorizer, HashingTF, IDF, StringIndexer, SQLTransformer, IndexToString, VectorAssembler, RegexTokenizer, StopWordsRemover, VectorSizeHint
+from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, NaiveBayes
+
+from pyspark.sql.functions import lit, col
+
 # COMMAND ----------
 
 # DBTITLE 1,Load Data
-from pyspark.sql.functions import lit, col
-
 # Load in one of the tables
 df1 = spark.sql("select * from default.video_games_5")
 df1 = df1.withColumn('category', lit("video_games"))
@@ -29,7 +40,7 @@ df = df1.union(df2).union(df3)
 
 # Take a sample (useful for code development purposes)
 # TODO: remove all the rest in this data frame when doing real analysis
-df = df.sample(False, 0.50, seed=0)
+df = df.sample(False, 0.30, seed=0)
 
 df = df.cache()
 
@@ -57,14 +68,38 @@ df.show()
 
 # COMMAND ----------
 
-# DBTITLE 1,Building Pipeline Stage
-from sparknlp.base import DocumentAssembler, Finisher
-from sparknlp.annotator import Tokenizer, Normalizer, StopWordsCleaner, Stemmer
+# DBTITLE 1,Confirmed Pipeline
+tokenizer = RegexTokenizer(inputCol="reviewText", outputCol="words", pattern="\\W")
 
-from pyspark.ml import Pipeline
-from pyspark.ml.feature import CountVectorizer, HashingTF, IDF, StringIndexer, SQLTransformer, IndexToString, VectorAssembler, RegexTokenizer, StopWordsRemover, VectorSizeHint
-from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, NaiveBayes
+pipeline_pre = [tokenizer, stopwordsRemover, counter]
 
+# COMMAND ----------
+
+# DBTITLE 1,[SKIP]Develop pipeline(Joe)
+
+
+# pick and choose what pipeline you want.
+pipeline_test = [tokenizer, stopwordsRemover, counter]
+
+
+eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
+eda.show()
+
+# COMMAND ----------
+
+# DBTITLE 1,[SKIP]Develop pipeline(Yujun)
+
+
+# pick and choose what pipeline you want.
+pipeline_test = [tokenizer, stopwordsRemover, counter]
+
+
+eda = Pipeline(stages=pipeline_test).fit(df).transform(df)
+eda.show()
+
+# COMMAND ----------
+
+# DBTITLE 1,Pipeline Libs
 # We'll tokenize the text using a simple RegexTokenizer
 tokenizer = RegexTokenizer(inputCol="reviewText", outputCol="words", pattern="\\W")
 
@@ -107,7 +142,6 @@ stopwordsRemover = StopWordsRemover(inputCol="words", outputCol="filtered")
 #     .setOutputAsArray(True) \
 #     .setCleanAnnotations(False)
 
-
 # Vectorize the sentences using simple BOW method. Other methods are possible:
 # https://spark.apache.org/docs/2.2.0/ml-features.html#feature-extractors
 tf = CountVectorizer(inputCol="filtered", outputCol="rawFeatures", vocabSize=2000, minTF=1, maxDF=0.40)
@@ -126,59 +160,7 @@ ml_nb = NaiveBayes(smoothing=1.0, modelType="multinomial")
 
 # COMMAND ----------
 
-# DBTITLE 1,Create Pipeline Obj
-counter = CountVectorizer(inputCol="filtered", outputCol="wordCount")
-
-
-# pick and choose what pipeline you want.
-pipeline_pre = [tokenizer, stopwordsRemover, counter]
-
-#tf, idf, assembler
-# paramGrid = ParamGridBuilder() \
-#     .addGrid(ml_alg.regParam, [0.3, 0.5, 0.7]) \
-#     .addGrid(ml_alg.elasticNetParam, [0.0]) \
-#     .addGrid(tf.minTF, [1, 100, 1000]) \
-#     .addGrid(tf.vocabSize, [500, 1000, 2500, 5000]) \
-#     .build()
-
-eda = Pipeline(stages=pipeline_pre).fit(df).transform(df)
-
-
-
-# COMMAND ----------
-
-display(df.groupBy("overall", "label").count().orderBy("overall"))
-
-# COMMAND ----------
-
-# res = []
-# for i in range(1, 6):
-#   total = df.filter(df.overall == i ).count()
-#   helpful = df.filter((df.overall == i ) & (df.label == 1)).count()
-#   res += [helpful/total]
-  
-# display(res)
-
-# COMMAND ----------
-
-# import pyspark.sql.functions as F
-
-# df.groupBy("overall").agg(
-# (F.count('label')).alias('count'),
-# (F.count('label') / df.count()).alias('percentage')
-# ).show()
-
-# COMMAND ----------
-
-# eda.select("filtered").show(10,False)
-
-# COMMAND ----------
-
-# eda.select("idfFeatures").show(10,False)
-
-# COMMAND ----------
-
-# DBTITLE 1,Split Data
+# DBTITLE 1,Split Data-Shuffle
 # TODO: MAKE SURE TO DISABLE THE SAMPLE!!
 
 # set seed for reproducibility
@@ -236,17 +218,3 @@ text_file_name = "_".join([now.strftime("%Y_%m_%d_%H_%M_%S"), Notes])
 with open(text_file_name, "w") as text_file:
   for file in files:
     text_file.write(file)
-
-# COMMAND ----------
-
- !pwd
-
-
-# COMMAND ----------
-
-for file in files:
-  print(file)
-
-# COMMAND ----------
-
-
