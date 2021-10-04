@@ -1,0 +1,68 @@
+
+---
+title: "MMA823_Data_Processing"
+author: "Yujun Mu"
+date: "21/09/2021"
+output: html_document
+---
+
+```{r}
+options(scipen=999)
+library(mice)
+library(ggplot2)
+library(EnvStats)
+library(dplyr)
+```
+
+```{r}
+data <- read.csv("new_train.csv")
+summary(data)
+```
+
+```{r}
+# remove "day_of_week" and "pdays" variables
+col_remove <- c("day_of_week","pdays")
+new_data <- select(data,-col_remove)
+```
+
+```{r}
+# change yes/no to 1/0
+new_data$y <- ifelse(new_data$y == "yes",1,0)
+```
+
+```{r}
+# change duration to min and take log distribution
+new_data$duration_min <- new_data$duration/60
+
+hist(log(new_data$duration_min+1))
+
+new_data$duration <- log(new_data$duration/60+1)
+```
+
+
+```{r}
+## Feature Engineer
+
+# add a binary to campaign variable
+new_data$campaign1 <- ifelse(new_data$campaign == 1,"True","False")
+
+# binning the age
+new_data$age <- cut(x = new_data$age, breaks = c(-Inf,21,30,40,50,60,Inf),c("<21","22-30","31-40","41-50","51-60",">60"))
+
+# add new binary to indicate Student
+new_data$student <- ifelse(new_data$job == "student","True","False")
+
+# add new binary to indicate Retired
+new_data$retired <- ifelse(new_data$job == "retired","True","False")
+
+
+# change month to season
+new_data$month <-ifelse(new_data$month == "jan"|new_data$month == "feb"|new_data$month == "mar","Q1",
+                         ifelse(new_data$month == "apr"|new_data$month == "may"|new_data$month == "jun","Q2",
+                                ifelse(new_data$month == "jul"|new_data$month == "aug"|new_data$month == "sep","Q3","Q4")))
+```
+
+```{r}
+# output the new data csv file
+write.csv(new_data, file = "clean_data.csv")
+```
