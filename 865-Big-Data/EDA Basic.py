@@ -66,6 +66,10 @@ display(df.groupBy("overall").count().orderBy("overall"))
 
 # COMMAND ----------
 
+display(df.groupBy("overall", "label").count().orderBy("overall"))
+
+# COMMAND ----------
+
 # The most common product IDs
 display(df.groupBy("asin").count().orderBy(col("count").desc()).head(50))
 
@@ -86,10 +90,6 @@ drop_list = [
 df = df.select([column for column in df.columns if column not in drop_list])
 
 df.show(2)
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
@@ -214,7 +214,6 @@ pipeline = Pipeline() \
                  pos_tagger,
                  chunker, finisher])
 
-
 # COMMAND ----------
 
 # pipelineFit = pipeline.fit(df)
@@ -233,10 +232,6 @@ df_transform.show(2)
 # DBTITLE 1,Get Term Frequencies
 counts = df_transform.select(F.explode('finished_cleanTokens').alias('col')).groupBy('col').count().sort(F.desc('count')).collect()
 # display(counts)
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 
@@ -333,10 +328,6 @@ counts = df_clean.select(F.explode('token_features').alias('col')).groupBy('col'
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # DBTITLE 1,Get Review Text Length
 import pyspark.sql.functions as F
 
@@ -381,9 +372,11 @@ sent = SentimentIntensityAnalyzer()
 
 # COMMAND ----------
 
-sent.polarity_scores(df['reviewText'])
+from pyspark.sql.functions import udf
+@udf
+sent.polarity_scores(df_transform['reviewText'])
 
-df = df.withColumn('reviewText', polarity_scores('reviewText'))
+df = ddf_transform.withColumn('reviewText', polarity_scores('reviewText'))
 
 # COMMAND ----------
 
